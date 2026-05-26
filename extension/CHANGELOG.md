@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.15 — Brighter toolbar icon
+- Replaced the dark black/red icon with a bright orange→pink→purple gradient picture/sparkle mark so it's easy to see on both light and dark Chrome toolbars.
+
 ## 1.0.14 — Image → Video tab
 - **New "Image → Video" tab** with up to **3 parallel model variants** per source image.
 - **Source widget** mirrors Respin/UGC: upload, paste URL, Grab visible tab, Pick from Library. Right-click → *Grab this image* now routes here if the Video tab is the active tab.
