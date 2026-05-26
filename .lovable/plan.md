@@ -1,130 +1,72 @@
+## UGC tab — guided multi-shot generator
 
-# Recommended Image Models — sortable, daily-refreshed
-
-Goal: when a user has linked an OpenRouter BYOK key, the extension shows a curated, daily-refreshed list of image-capable models from `openrouter.ai/models?input_modalities=image`. User can sort by price, speed, or popularity, click one, and it becomes the model used for the next Generate / Refine.
-
-This Lovable project is the extension source only (per memory, never publish it). All scraping, cron, and the public JSON endpoint live in the ReadyCode project. The extension only consumes the JSON.
+A new **UGC** tab in the Chrome extension. The user uploads/grabs any subject (product, food, place, person), writes a single master prompt (shot 1), and the extension generates a chained pack of 6 consistent shots step-by-step. Each shot is approved before the next is generated, and shot N≥2 uses shot N−1's output as a reference image so identity/outfit/scene stay locked. Powered entirely by the user's BYOK provider — ReadyCode never bills for inference.
 
 ---
 
-## Part A — ReadyCode project (separate Lovable repo)
+### User flow
 
-Hand this off as a single prompt to the ReadyCode project:
-
-> Add a daily-refreshed catalog of image-generation models sourced from OpenRouter, exposed as a public JSON endpoint that the ImageKit Chrome extension can read.
->
-> **1. Schema (new migration):**
-> ```sql
-> create table public.imagekit_model_catalog (
->   id text primary key,                 -- openrouter model id, e.g. "google/gemini-2.5-flash-image"
->   name text not null,
->   provider text not null,              -- "google", "openai", "black-forest-labs", ...
->   description text,
->   context_length int,
->   pricing_prompt numeric,              -- USD per 1M input tokens
->   pricing_completion numeric,          -- USD per 1M output tokens
->   pricing_image numeric,               -- USD per image when available
->   output_modalities text[] not null,   -- must contain 'image'
->   input_modalities text[] not null,
->   weekly_tokens bigint,                -- popularity signal
->   median_latency_ms int,               -- speed signal
->   throughput_tps numeric,              -- speed signal (tokens/sec)
->   created_at_openrouter timestamptz,   -- model release date for "recency"
->   raw jsonb not null,                  -- full OpenRouter row, for forward-compat
->   refreshed_at timestamptz not null default now()
-> );
-> alter table public.imagekit_model_catalog enable row level security;
-> create policy "public read" on public.imagekit_model_catalog for select to anon, authenticated using (true);
-> ```
-> No write policy — only the cron edge function writes (service role).
->
-> **2. Edge function `imagekit-refresh-models`:**
-> - Fetches `https://openrouter.ai/api/v1/models` (and, if available, the `/api/frontend/models` endpoint that exposes weekly token + latency stats — fall back gracefully if it changes).
-> - Filters to models where `architecture.output_modalities` includes `image`.
-> - Upserts each row into `imagekit_model_catalog`. Deletes rows not seen in the latest fetch (so retired models drop off).
-> - Returns `{ count, refreshed_at }`.
->
-> **3. pg_cron job (daily 03:00 UTC):**
-> ```sql
-> select cron.schedule(
->   'imagekit-refresh-models-daily',
->   '0 3 * * *',
->   $$ select net.http_post(
->        url := 'https://<project-ref>.supabase.co/functions/v1/imagekit-refresh-models',
->        headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'))
->      ); $$
-> );
-> ```
->
-> **4. Public read endpoint (`/api/public/imagekit/models`):**
-> - TanStack server route, no auth required, CORS open to the extension origin.
-> - Returns `{ refreshed_at, models: [...] }` sorted by `weekly_tokens desc` by default.
-> - Supports `?sort=price|speed|popularity` and `?limit=` query params.
-> - Includes for each model: `id`, `name`, `provider`, `description`, `pricing_image`, `pricing_prompt`, `pricing_completion`, `median_latency_ms`, `throughput_tps`, `weekly_tokens`, `created_at_openrouter`.
-> - Stable URL: `https://project--<project-id>.lovable.app/api/public/imagekit/models`.
->
-> **5. Manual trigger:** include a one-off admin button on `/admin/imagekit` that calls `imagekit-refresh-models` so you can refresh on demand without waiting for cron.
-
-The extension will call only the public endpoint in step 4.
+1. Open UGC tab → pick subject (Person / Product / Food / Place — drives the default prompt pack template).
+2. Drop or grab a source image (same source widget as Respin: URL, upload, "Grab visible tab", "Pick from Library").
+3. **Model picker at top of tab** — recommends `x-ai/grok-imagine` and `google/gemini-3-pro-image-preview` for photoreal humans; user can swap to anything from the existing OpenRouter catalog or paste a custom slug. Falls back to whatever BYOK provider they have if not OpenRouter.
+4. **Shot 1 (master)** — pre-filled with a category template (e.g. for Person: the full-body composition prompt from the user's example). User edits freely.
+5. Click **Generate pack** → text call to BYOK rewrites prompts 2–6 to stay consistent with the master (same subject/outfit/lighting/style, varied pose/scene/angle). The 5 follow-up prompts appear in editable cards below.
+6. Click **Generate shot 1** → renders. User sees result, can **Refine** (reuses existing refine box) or **Approve & continue**.
+7. On approve, **shot 2** auto-fires using shot 1's image as the reference (plus the original source) and the AI-written prompt 2. Repeat through shot 6.
+8. At any point, editing the master prompt triggers a re-sync of the unrendered follow-up prompts (one BYOK text call).
+9. Each completed shot has Download / Save to Library buttons (reuses library code).
 
 ---
 
-## Part B — Extension changes (this repo)
+### Default prompt packs (shipped in extension code)
 
-### B1. New "Models" sub-section in the Respin tab
+Four category templates, each a 6-shot chain. Example for **Person/UGC fashion** (matches the user's example):
 
-Under existing **3. Your AI**, add a collapsible **"Browse recommended models"** panel that appears only when the selected BYOK provider is OpenRouter (reuse `isOpenRouterProvider` in `sidepanel.js`).
-
-Inside the panel:
-- Header row with three sort buttons: **Popularity** (default), **Price**, **Speed**. Active button highlighted.
-- Scrollable list (max-height ~320px) of model cards. Each card shows:
-  - Model name + provider chip
-  - One-line description (truncated)
-  - Three stats: `$ / image` (or `$ / 1M tokens` fallback), `~Xs median`, `★ weekly rank`
-  - A small "Use this" button
-- Footer: `Updated <relative time> · Source: openrouter.ai` with a refresh icon (re-fetches the JSON, max once per minute).
-
-Clicking "Use this":
-- Sets a new `state.modelOverride` to the OpenRouter model id (e.g. `google/gemini-2.5-flash-image`).
-- The model id is shown next to the provider hint: `Using google/gemini-2.5-flash-image · Clear`.
-- `Clear` resets `state.modelOverride = null` and falls back to `imageModelForProvider(provider)` (existing `openrouter/auto` behavior).
-
-Generate + Refine pass `model: state.modelOverride ?? imageModelForProvider(provider)` so existing routing is preserved when no override is set.
-
-### B2. Data fetch
-
-- New module-level constant `RC_API_BASE = "https://project--<project-id>.lovable.app"` (final value pasted in once the ReadyCode endpoint is live).
-- New function `loadModelCatalog(sort)` → `fetch(\`${RC_API_BASE}/api/public/imagekit/models?sort=${sort}\`)`, cached in `chrome.storage.local` under `rc_imagekit_models_cache` with a 6h TTL.
-- No auth header required (the endpoint is `/api/public/*`).
-
-### B3. Manifest
-
-Add `https://project--<project-id>.lovable.app/*` to `host_permissions` so the side panel can `fetch` the public endpoint. Bump `manifest.json` version to `1.0.5`.
-
-### B4. Styling
-
-Add to `sidepanel.css`:
-- `.model-list { max-height: 320px; overflow-y: auto; ... }`
-- `.model-card { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid #e5e5e5; border-radius: 6px; }`
-- `.model-card.active { border-color: #4f46e5; background: #f6f5ff; }`
-- `.sort-tabs { display: flex; gap: 4px; margin-bottom: 8px; }` + active state.
-
-### B5. CHANGELOG
-
-```
-## 1.0.5 — Recommended models picker
-- New "Browse recommended models" panel (visible when your BYOK provider is OpenRouter). Sortable by Popularity, Price, or Speed. Tap "Use this" to lock the next Generate/Refine to that specific model. List is refreshed daily by ReadyCode straight from openrouter.ai.
+```text
+1. Full body composition, photorealistic portrait of a 25-year-old woman with long hair, natural realistic skin with visible pores and skin texture, streetwear vibe, wearing this exact black t-shirt with the precise white graphic logo from the reference image, fitted not oversized, black pants and all-black shoes, standing in confident pose with hand on hip, plain white seamless background, natural studio lighting, ultra realistic, high resolution, detailed
+2. Same subject, three-quarter pose, mid-shot, soft window light
+3. Same subject in an outdoor lifestyle scene (urban sidewalk, golden hour)
+4. Mirror selfie, phone visible, casual bedroom interior
+5. Action shot — walking, motion blur in background
+6. Close-up portrait, shallow depth of field, expressive
 ```
 
+Product / Food / Place ship with their own 6-shot baselines (hero, lifestyle, in-use, scale reference, detail macro, alt angle).
+
 ---
 
-## Why this split
+### Files to change
 
-- The extension stays static (no scraping, no cron, no secrets) — fits the "never publish this Lovable project" rule.
-- ReadyCode owns the data pipeline, cache, and is the only place that needs OpenRouter API access. Other ReadyCode features (BYOK setup page, library) can reuse the same `imagekit_model_catalog` table later.
-- Daily cron + 6h client cache means at most one OpenRouter scrape/day and near-instant UX in the extension.
+**Extension (this repo):**
+- `extension/sidepanel.html` — add 4th tab `UGC` and a new `<section id="tab-ugc">` panel with: subject-type chips, source widget (cloned markup), model picker (cloned from Respin), master prompt textarea, "Generate pack" button, then a vertical list of 5 shot cards (prompt textarea + Generate/Refine/Approve buttons + result image + meta).
+- `extension/sidepanel.css` — `.ugc-shot-card`, `.ugc-chain`, status states (pending / generating / done / approved).
+- `extension/sidepanel.js` — new `ugc` module:
+  - `state.ugc = { subjectType, sourceUrl, extras, masterPrompt, shots: [{prompt, status, result, refineHistory}] }`
+  - `loadPromptPack(subjectType)` returns the default 6 prompts
+  - `regenerateFollowUps()` calls the new ReadyCode endpoint with `{ mode: "ugc_chain", master, subjectType, count: 5 }` and replaces shots[1..5].prompt
+  - `generateShot(i)` calls existing `imagekit-generate` with `image_urls = [source, ...extras, shots[i-1].result?.url]` (skip the prev-result ref on shot 1)
+  - reuses `imagekit-refine` for per-shot refine
+  - "Approve & continue" advances state and triggers next shot
+- `extension/manifest.json` — bump to `1.0.7`.
+- `extension/CHANGELOG.md` — 1.0.7 entry.
 
-## Open items to confirm before build
+**ReadyCode project (separate repo — not edited from here):**
+- Extend existing `imagekit-enhance-prompt` edge function with a new `mode: "ugc_chain"` that takes `{ master_prompt, subject_type, count }` and returns `{ prompts: [string × count] }` via the user's BYOK text model. System prompt instructs the model to preserve subject identity/outfit/lighting and only vary pose/scene/angle. Keeps the cron, BYOK billing, and security model identical to the existing enhance flow.
+- No DB schema change.
 
-- Final ReadyCode project URL to bake into `RC_API_BASE` (or use the stable `project--<id>.lovable.app` host).
-- Whether to also expose this picker on the **Get Started** tab as a teaser for unlinked users (read-only). Default plan: no — only show after BYOK is linked, to avoid promising models they can't run yet.
+---
+
+### Technical notes
+
+- Identity lock comes from passing the previous shot's output back in as a reference image on every subsequent call — the existing `imagekit-generate` already accepts an `image_urls[]` array (used today by Respin extras), so no backend change for generation itself.
+- All BYOK calls (text and image) flow through existing ReadyCode edge functions — no new secrets, no published Lovable web app (respects the "never publish" core rule).
+- Step-by-step + approve avoids burning BYOK credits on a bad chain; if shot 1 is wrong, user refines once, then the rest of the chain inherits the good shot.
+- Model picker on the UGC tab reuses the v1.0.5 catalog + v1.0.6 custom-model-id input — no new picker code, just a second mount point.
+
+---
+
+### Out of scope (can follow later)
+
+- Saving a UGC chain as a reusable "campaign" template.
+- Auto-export as a zip / contact sheet.
+- Background music / video conversion.

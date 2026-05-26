@@ -299,6 +299,7 @@ function updateModelOverrideUI() {
     row.classList.add("hidden");
   }
   renderModelList(); // re-highlight active
+  if (typeof updateUgcModelChips === "function") updateUgcModelChips();
 }
 
 $("model-override-clear").addEventListener("click", () => {
@@ -686,6 +687,7 @@ async function openLibPicker(target) {
       img.addEventListener("click", () => {
         if (!url) return;
         if (libPickerTarget === "source") setSource({ url, dataUrl: url });
+        else if (libPickerTarget === "ugc-source") ugcSetSource({ url, dataUrl: url });
         else addExtra(url, url);
         libPicker.close();
       });
@@ -792,3 +794,427 @@ const welcomePasteBtn = document.getElementById("welcome-paste");
 if (welcomePasteBtn) welcomePasteBtn.addEventListener("click", () => linkDialog.showModal());
 const welcomeGoRespin = document.getElementById("welcome-go-respin");
 if (welcomeGoRespin) welcomeGoRespin.addEventListener("click", (e) => { e.preventDefault(); activateTab("respin"); });
+
+// ============================================================
+// UGC tab — guided multi-shot generator
+// ============================================================
+
+const UGC_TEMPLATES = {
+  person: [
+    "Full body composition, photorealistic portrait of a 25-year-old woman with long hair, natural realistic skin with visible pores and skin texture, streetwear vibe, wearing this exact black t-shirt with the precise white graphic logo from the reference image, fitted not oversized, black pants and all-black shoes, standing in confident pose with hand on hip, plain white seamless background, natural studio lighting, ultra realistic, high resolution, detailed",
+    "Same subject and outfit, three-quarter pose, mid-shot framing, soft window light, neutral indoor background, candid expression, photorealistic skin texture.",
+    "Same subject and outfit, outdoor urban sidewalk scene at golden hour, full body walking shot, shallow depth of field, lifestyle UGC vibe.",
+    "Same subject and outfit, mirror selfie in a casual bedroom interior, phone partly visible, soft ambient light, authentic UGC feel.",
+    "Same subject and outfit, motion action shot — walking briskly, slight motion blur in background, mid-day daylight.",
+    "Same subject, close-up portrait, shallow depth of field, expressive natural smile, soft directional light, magazine quality.",
+  ],
+  product: [
+    "Hero shot of the exact product from the reference image on a clean white seamless background, soft contact shadow, even studio lighting, ultra detailed, e-commerce quality.",
+    "Same product in a natural lifestyle scene — in use in a real environment with soft daylight and clean composition.",
+    "Same product in-hand, close-up showing scale and texture, shallow depth of field.",
+    "Same product as a flat-lay on a styled surface with complementary props, top-down angle, soft even light.",
+    "Same product detail macro shot, focus on material and craftsmanship, dramatic side lighting.",
+    "Same product alternate angle, 3/4 view on a colored seamless background that complements the product palette.",
+  ],
+  food: [
+    "Hero shot of the exact dish from the reference image on a styled plate, overhead 90-degree angle, natural daylight, fresh garnish, food magazine quality.",
+    "Same dish, 45-degree angle, shallow depth of field, soft window light, rustic wooden surface.",
+    "Same dish in a lifestyle context — being served at a table with hands and cutlery, candid restaurant vibe.",
+    "Same dish close-up macro, steam rising, dramatic side lighting, glossy textures.",
+    "Same dish flat-lay with ingredients arranged around it, neutral surface, even daylight.",
+    "Same dish in-hand bite shot, vertical mobile framing, casual UGC food influencer vibe.",
+  ],
+  place: [
+    "Wide establishing shot of the exact place from the reference image, golden hour, clean composition, high dynamic range, travel magazine quality.",
+    "Same place, interior or detail shot showing character and atmosphere, soft natural light.",
+    "Same place with a single person in the frame for scale, lifestyle UGC travel vibe, candid pose.",
+    "Same place at night with practical lights on, long exposure feel, moody atmosphere.",
+    "Same place close-up architectural detail or signature feature, soft directional light.",
+    "Same place in a different season or weather (light rain or morning mist), atmospheric, cinematic.",
+  ],
+};
+
+const UGC_CHAIN_SYSTEM = `You are a senior creative director writing image-generation prompts for a UGC content pack. Given a MASTER prompt (shot 1), write N follow-up prompts that:
+- Keep the exact same subject, outfit, product, lighting style, and overall aesthetic locked.
+- Vary ONLY pose, framing, angle, scene, or moment.
+- Each prompt must be production-ready for image models (Grok Imagine, Gemini 3 Pro Image, Flux). Include lens, light, mood when relevant.
+- Return ONLY a JSON array of strings, no commentary, no markdown.`;
+
+const ugc = {
+  subjectType: "person",
+  sourceUrl: null,
+  sourceDataUrl: null,
+  shots: [],         // [{ prompt, status: 'idle'|'running'|'done'|'approved', result, lastModel, lastProviderId }]
+  busy: false,
+};
+
+function ugcStatus(msg, kind = "info") {
+  const el = $("ugc-status");
+  if (!msg) { el.classList.add("hidden"); return; }
+  el.className = `status ${kind}`;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function ugcSetSource({ url = null, dataUrl = null }) {
+  ugc.sourceUrl = url;
+  ugc.sourceDataUrl = dataUrl;
+  const prev = $("ugc-source-preview");
+  const src = dataUrl || url;
+  if (src) {
+    prev.classList.remove("empty");
+    prev.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = src;
+    prev.appendChild(img);
+  }
+  refreshUgcPackButton();
+}
+
+function refreshUgcPackButton() {
+  const ok = !!(ugc.sourceUrl || ugc.sourceDataUrl) && !!state.token && state.providers.length > 0 && $("ugc-master-prompt").value.trim().length > 10;
+  $("ugc-generate-pack").disabled = !ok || ugc.busy;
+}
+
+function loadUgcTemplate(subject) {
+  const pack = UGC_TEMPLATES[subject] || UGC_TEMPLATES.person;
+  $("ugc-master-prompt").value = pack[0];
+  ugc.shots = pack.map((p, i) => ({ prompt: p, status: "idle", result: null }));
+  renderUgcChain();
+  refreshUgcPackButton();
+}
+
+// Subject chips
+document.querySelectorAll("#ugc-subject-chips .chip").forEach((c) => {
+  c.addEventListener("click", () => {
+    document.querySelectorAll("#ugc-subject-chips .chip").forEach((x) => x.classList.toggle("active", x === c));
+    ugc.subjectType = c.dataset.subject;
+    loadUgcTemplate(ugc.subjectType);
+  });
+});
+
+// Source widget
+$("ugc-load-url").addEventListener("click", () => {
+  const v = $("ugc-source-url").value.trim();
+  if (!v) return;
+  ugcSetSource({ url: v, dataUrl: v });
+});
+$("ugc-source-file").addEventListener("change", (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => ugcSetSource({ url: reader.result, dataUrl: reader.result });
+  reader.readAsDataURL(f);
+});
+$("ugc-grab-tab").addEventListener("click", async () => {
+  try {
+    const tab = await chrome.tabs.query({ active: true, currentWindow: true });
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab[0].windowId, { format: "png" });
+    ugcSetSource({ url: dataUrl, dataUrl });
+  } catch (e) { ugcStatus(`Couldn't capture tab: ${e.message}`, "error"); }
+});
+$("ugc-pick-lib").addEventListener("click", () => openLibPicker("ugc-source"));
+
+// Model presets — share state.modelOverride with Respin
+function updateUgcModelChips() {
+  document.querySelectorAll(".ugc-model-preset").forEach((b) => {
+    b.classList.toggle("active", b.dataset.model === state.modelOverride);
+  });
+  $("ugc-model-input").value = state.modelOverride || "";
+}
+document.querySelectorAll(".ugc-model-preset").forEach((b) => {
+  b.addEventListener("click", () => {
+    state.modelOverride = b.dataset.model;
+    updateModelOverrideUI();
+    updateUgcModelChips();
+    ugcStatus(`Using ${b.dataset.model} for UGC and Respin.`, "success");
+  });
+});
+$("ugc-model-apply").addEventListener("click", () => {
+  const id = $("ugc-model-input").value.trim();
+  if (!id || !/^[a-z0-9._-]+\/[a-z0-9._:-]+$/i.test(id)) {
+    ugcStatus("Enter a valid OpenRouter model id, e.g. x-ai/grok-imagine", "error");
+    return;
+  }
+  state.modelOverride = id;
+  updateModelOverrideUI();
+  updateUgcModelChips();
+  ugcStatus(`Using ${id}.`, "success");
+});
+$("ugc-model-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("ugc-model-apply").click(); }
+});
+
+// Master prompt
+$("ugc-master-prompt").addEventListener("input", () => {
+  if (ugc.shots[0]) ugc.shots[0].prompt = $("ugc-master-prompt").value;
+  refreshUgcPackButton();
+});
+$("ugc-reset-template").addEventListener("click", () => loadUgcTemplate(ugc.subjectType));
+
+// Generate pack — AI-rewrites shots 2..6 based on master
+$("ugc-generate-pack").addEventListener("click", async () => {
+  const master = $("ugc-master-prompt").value.trim();
+  if (!master) return;
+  const providerId = $("provider").value || null;
+  ugc.busy = true;
+  refreshUgcPackButton();
+  ugcStatus("AI is writing the follow-up prompts…", "info");
+  try {
+    const sys = `${UGC_CHAIN_SYSTEM}\nN = 5\nSubject category: ${ugc.subjectType}.`;
+    const data = await api("imagekit-enhance-prompt", {
+      provider_id: providerId,
+      system: sys,
+      prompt: `MASTER (shot 1):\n${master}\n\nReturn a JSON array of exactly 5 strings for shots 2 through 6.`,
+      style: "ugc_chain",
+    });
+    const raw = (data?.enhanced_prompt || data?.text || "").trim();
+    let arr = null;
+    try {
+      const match = raw.match(/\[[\s\S]*\]/);
+      arr = match ? JSON.parse(match[0]) : JSON.parse(raw);
+    } catch { /* fallback below */ }
+    if (!Array.isArray(arr) || arr.length < 5) {
+      // Fallback: split lines
+      arr = raw.split(/\n+/).map((l) => l.replace(/^\s*[\d.\-)]+\s*/, "").trim()).filter(Boolean).slice(0, 5);
+    }
+    if (arr.length < 5) throw new Error("AI didn't return 5 follow-up prompts.");
+    ugc.shots = [
+      { prompt: master, status: "idle", result: null },
+      ...arr.slice(0, 5).map((p) => ({ prompt: String(p), status: "idle", result: null })),
+    ];
+    renderUgcChain();
+    ugcStatus("Prompt pack ready. Generate shot 1 to start the chain.", "success");
+  } catch (e) {
+    ugcStatus(`Couldn't generate pack: ${e.message}. Using built-in template instead.`, "error");
+    const pack = UGC_TEMPLATES[ugc.subjectType];
+    ugc.shots = pack.map((p, i) => ({ prompt: i === 0 ? master : p, status: "idle", result: null }));
+    renderUgcChain();
+  } finally {
+    ugc.busy = false;
+    refreshUgcPackButton();
+  }
+});
+
+function renderUgcChain() {
+  const root = $("ugc-chain");
+  root.innerHTML = "";
+  if (!ugc.shots.length) return;
+  // Determine which shot is "live" — first non-approved
+  const liveIdx = ugc.shots.findIndex((s) => s.status !== "approved");
+  ugc.shots.forEach((shot, i) => {
+    const card = document.createElement("div");
+    card.className = "ugc-shot-card";
+    if (shot.status === "done") card.classList.add("done");
+    if (shot.status === "approved") card.classList.add("approved");
+    // Lock future shots if a previous one isn't approved (except shot 0)
+    if (i > 0 && ugc.shots[i - 1].status !== "approved") card.classList.add("locked");
+
+    const header = document.createElement("div");
+    header.className = "shot-header";
+    const num = document.createElement("span");
+    num.className = "shot-num";
+    num.textContent = `Shot ${i + 1} of ${ugc.shots.length}`;
+    const st = document.createElement("span");
+    st.className = "shot-state";
+    st.textContent = ({ idle: "Pending", running: "Generating…", done: "Ready — review or approve", approved: "Approved ✓" })[shot.status];
+    header.appendChild(num);
+    header.appendChild(st);
+    card.appendChild(header);
+
+    const ta = document.createElement("textarea");
+    ta.value = shot.prompt;
+    ta.addEventListener("input", () => {
+      shot.prompt = ta.value;
+      if (i === 0) $("ugc-master-prompt").value = ta.value;
+    });
+    card.appendChild(ta);
+
+    const actions = document.createElement("div");
+    actions.className = "row";
+    actions.style.marginTop = "6px";
+    const genBtn = document.createElement("button");
+    genBtn.type = "button";
+    genBtn.className = "primary";
+    genBtn.textContent = shot.result ? "Re-generate" : "Generate shot";
+    genBtn.addEventListener("click", () => generateUgcShot(i));
+    actions.appendChild(genBtn);
+
+    if (shot.status === "done") {
+      const approveBtn = document.createElement("button");
+      approveBtn.type = "button";
+      approveBtn.className = "secondary";
+      approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & continue";
+      approveBtn.addEventListener("click", () => approveUgcShot(i));
+      actions.appendChild(approveBtn);
+
+      const saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "secondary";
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", () => saveUgcShot(i));
+      actions.appendChild(saveBtn);
+
+      const dlBtn = document.createElement("button");
+      dlBtn.type = "button";
+      dlBtn.className = "secondary";
+      dlBtn.textContent = "Download";
+      dlBtn.addEventListener("click", () => downloadUgcShot(i));
+      actions.appendChild(dlBtn);
+    }
+    card.appendChild(actions);
+
+    if (shot.result) {
+      const img = document.createElement("img");
+      img.className = "shot-img";
+      img.src = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
+      card.appendChild(img);
+      const meta = document.createElement("div");
+      meta.className = "shot-meta";
+      meta.textContent = `${shot.result.provider_name} · ${shot.result.model_name} · ${(shot.result.duration_ms/1000).toFixed(1)}s`;
+      card.appendChild(meta);
+
+      // Per-shot refine
+      const refineRow = document.createElement("div");
+      refineRow.className = "refine-row";
+      const refineInput = document.createElement("input");
+      refineInput.type = "text";
+      refineInput.placeholder = "Refine — e.g. 'warmer light, hair a bit longer'";
+      const refineBtn = document.createElement("button");
+      refineBtn.type = "button";
+      refineBtn.className = "secondary";
+      refineBtn.textContent = "Refine";
+      refineBtn.addEventListener("click", () => refineUgcShot(i, refineInput.value.trim()));
+      refineRow.appendChild(refineInput);
+      refineRow.appendChild(refineBtn);
+      card.appendChild(refineRow);
+    }
+
+    root.appendChild(card);
+  });
+}
+
+async function generateUgcShot(i) {
+  if (ugc.busy) return;
+  const shot = ugc.shots[i];
+  if (!shot) return;
+  const providerId = $("provider").value || null;
+  const provider = state.providers.find((p) => p.id === providerId);
+  const model = effectiveModelForProvider(provider);
+  const refs = [];
+  if (ugc.sourceUrl) refs.push(ugc.sourceUrl);
+  // Reference the most recently approved/done previous shot's image for identity lock
+  for (let j = i - 1; j >= 0; j--) {
+    const prev = ugc.shots[j];
+    if (prev?.result) {
+      refs.push(`data:${prev.result.mime_type};base64,${prev.result.image_base64}`);
+      break;
+    }
+  }
+  ugc.busy = true;
+  shot.status = "running";
+  renderUgcChain();
+  ugcStatus(`Generating shot ${i + 1}…`, "info");
+  try {
+    const data = await api("imagekit-generate", {
+      provider_id: providerId,
+      model,
+      mode: "lifestyle",
+      prompt: shot.prompt,
+      images: refs,
+    });
+    if (data.error) throw new Error(data.error);
+    shot.result = data;
+    shot.lastModel = model;
+    shot.lastProviderId = providerId;
+    shot.status = "done";
+    ugcStatus(`Shot ${i + 1} ready — refine or approve.`, "success");
+  } catch (e) {
+    shot.status = "idle";
+    ugcStatus(`Shot ${i + 1} failed: ${e.message}`, "error");
+  } finally {
+    ugc.busy = false;
+    renderUgcChain();
+  }
+}
+
+async function refineUgcShot(i, refineText) {
+  if (!refineText) { ugcStatus("Type what to change.", "error"); return; }
+  const shot = ugc.shots[i];
+  if (!shot?.result || ugc.busy) return;
+  ugc.busy = true;
+  shot.status = "running";
+  renderUgcChain();
+  ugcStatus(`Refining shot ${i + 1}…`, "info");
+  try {
+    const currentDataUrl = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
+    const data = await api("imagekit-generate", {
+      provider_id: shot.lastProviderId,
+      model: shot.lastModel,
+      mode: "refine",
+      prompt: refineText,
+      images: [currentDataUrl, ugc.sourceUrl].filter(Boolean),
+    });
+    if (data.error) throw new Error(data.error);
+    shot.result = data;
+    shot.status = "done";
+    ugcStatus(`Shot ${i + 1} refined.`, "success");
+  } catch (e) {
+    shot.status = "done";
+    ugcStatus(`Refine failed: ${e.message}`, "error");
+  } finally {
+    ugc.busy = false;
+    renderUgcChain();
+  }
+}
+
+function approveUgcShot(i) {
+  const shot = ugc.shots[i];
+  if (!shot?.result) return;
+  shot.status = "approved";
+  renderUgcChain();
+  // Auto-fire next shot if any
+  const next = ugc.shots[i + 1];
+  if (next && next.status === "idle") {
+    setTimeout(() => generateUgcShot(i + 1), 250);
+  } else {
+    ugcStatus("Chain complete ✓ — save the shots you want to keep.", "success");
+  }
+}
+
+async function saveUgcShot(i) {
+  const shot = ugc.shots[i];
+  if (!shot?.result) return;
+  ugcStatus(`Saving shot ${i + 1}…`, "info");
+  try {
+    await api("imagekit-save", {
+      image_base64: shot.result.image_base64,
+      mime_type: shot.result.mime_type,
+      kind: "ugc",
+      source_metadata: {
+        prompt: shot.prompt,
+        subject_type: ugc.subjectType,
+        shot_index: i + 1,
+        provider: shot.result.provider_name,
+        model: shot.result.model_name,
+        source_urls: [ugc.sourceUrl].filter((s) => s && !s.startsWith("data:")),
+      },
+    });
+    ugcStatus(`Shot ${i + 1} saved to library ✓`, "success");
+  } catch (e) {
+    ugcStatus(`Save failed: ${e.message}`, "error");
+  }
+}
+
+function downloadUgcShot(i) {
+  const shot = ugc.shots[i];
+  if (!shot?.result) return;
+  const a = document.createElement("a");
+  a.href = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
+  a.download = `readycode-ugc-${i + 1}-${Date.now()}.png`;
+  a.click();
+}
+
+// Initialise default template
+loadUgcTemplate("person");
+updateUgcModelChips();
