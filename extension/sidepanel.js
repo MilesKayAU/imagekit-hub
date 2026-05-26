@@ -1764,8 +1764,25 @@ async function pollVideoJob(i) {
         slot.progressMsg = "Rendering…";
       }
       renderVideoSlots();
-      if (st === "completed" || st === "succeeded" || data?.video_url) {
-        slot.result = data;
+      const terminal = st === "completed" || st === "succeeded" || st === "ready" || st === "success";
+      const extractedUrl = extractVideoUrl(data);
+      if (terminal || extractedUrl) {
+        // Log full response so we can see which field carried the URL.
+        try { console.log(`[imagekit-video-status] slot ${i + 1} terminal payload:`, JSON.parse(JSON.stringify(data))); } catch {}
+        if (!extractedUrl) {
+          slot.status = "failed";
+          slot.progressMsg = "Ready but no video URL in response. See console.";
+          videoStatus(`Slot ${i + 1}: backend reported ready but returned no video URL.`, "error");
+          return;
+        }
+        slot.result = {
+          ...data,
+          video_url: extractedUrl,
+          mime_type: data?.mime_type || data?.content_type || "video/mp4",
+          provider_name: data?.provider_name || slot.providerName || providerForSlug(slot.model),
+          model_name:    data?.model_name    || slot.modelSlug || slot.model,
+          duration_s:    data?.duration_s    || data?.duration || slot.duration,
+        };
         slot.status = "ready";
         slot.progressMsg = "";
         renderVideoSlots();
