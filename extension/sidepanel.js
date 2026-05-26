@@ -1705,8 +1705,17 @@ async function generateVideoSlot(i) {
     slot.modelSlug     = data.model_slug || slot.model;
     slot.statusUrl     = data.status_url || null;
     slot.responseUrl   = data.response_url || null;
-    if (data.video_url) {
-      slot.result = data;
+    const syncUrl = extractVideoUrl(data);
+    if (syncUrl) {
+      try { console.log(`[imagekit-video-generate] slot ${i + 1} sync payload:`, JSON.parse(JSON.stringify(data))); } catch {}
+      slot.result = {
+        ...data,
+        video_url: syncUrl,
+        mime_type: data.mime_type || data.content_type || "video/mp4",
+        provider_name: data.provider_name || slot.providerName || providerForSlug(slot.model),
+        model_name:    data.model_name    || slot.modelSlug || slot.model,
+        duration_s:    data.duration_s    || data.duration || slot.duration,
+      };
       slot.status = "ready";
       slot.progressMsg = "";
       videoStatus(`Slot ${i + 1} ready.`, "success");
