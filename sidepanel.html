@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ReadyCode ImageKit</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <strong>ReadyCode ImageKit</strong>
+      <span class="tag">BYOK · free</span>
+    </div>
+    <div class="auth-controls">
+      <span id="auth-state" class="auth-state">Checking…</span>
+      <button id="link-btn" class="secondary" style="margin-left:8px;padding:4px 8px;font-size:11px;">Link</button>
+    </div>
+  </header>
+
+  <dialog id="link-dialog">
+    <form method="dialog" style="padding:14px;min-width:280px;border:none;">
+      <h3 style="margin:0 0 6px;font-size:14px;">Link to ReadyCode</h3>
+      <p class="muted" style="margin:0 0 10px;">Open <a href="https://readycode.ai/imagekit/connect" target="_blank">readycode.ai/imagekit/connect</a>, copy the connect token, paste below.</p>
+      <textarea id="link-token" rows="3" placeholder="RC1.…" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-family:monospace;font-size:11px;"></textarea>
+      <div class="row" style="justify-content:flex-end;margin-top:8px;">
+        <button type="button" id="link-cancel" class="secondary">Cancel</button>
+        <button type="button" id="link-save" class="primary">Link</button>
+      </div>
+    </form>
+  </dialog>
+
+
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="respin">Respin</button>
+    <button class="tab" data-tab="library">Library</button>
+    <button class="tab" data-tab="about">About</button>
+  </nav>
+
+  <main>
+    <section id="tab-respin" class="tab-panel active">
+      <div class="block">
+        <label class="block-label">1. Source image</label>
+        <div id="source-preview" class="preview empty">
+          <span>Right-click any image on a page → <em>Grab this image…</em>, paste a URL, or upload.</span>
+        </div>
+        <div class="row">
+          <input id="source-url" type="url" placeholder="https://…/product.jpg" />
+          <button id="load-url" class="secondary">Load URL</button>
+        </div>
+        <div class="row">
+          <input id="source-file" type="file" accept="image/*" />
+          <button id="grab-tab" class="secondary" title="Capture the visible area of the active tab">Grab visible tab</button>
+        </div>
+      </div>
+
+      <div class="block">
+        <label class="block-label">2. Style</label>
+        <div class="chips">
+          <button class="chip active" data-style="lifestyle">Lifestyle scene</button>
+          <button class="chip" data-style="white">White background</button>
+          <button class="chip" data-style="minimalist">Minimalist</button>
+          <button class="chip" data-style="editorial">Editorial</button>
+        </div>
+        <textarea id="prompt" rows="3" placeholder="Extra direction (optional): e.g. soft morning light, bathroom setting"></textarea>
+      </div>
+
+      <div class="block">
+        <label class="block-label">3. Your AI</label>
+        <select id="provider"></select>
+        <p class="muted" id="provider-hint">Uses your BYOK key. ReadyCode pays nothing. <a href="https://readycode.ai/byok" target="_blank">Manage keys</a></p>
+      </div>
+
+      <button id="generate" class="primary" disabled>Generate</button>
+
+      <div id="output" class="output hidden">
+        <img id="output-img" alt="" />
+        <div class="row">
+          <button id="download" class="secondary">Download</button>
+          <button id="save" class="primary">Save to Library</button>
+        </div>
+        <div id="output-meta" class="muted"></div>
+      </div>
+
+      <div id="status" class="status hidden"></div>
+    </section>
+
+    <section id="tab-library" class="tab-panel">
+      <div id="library-grid" class="library-grid">
+        <p class="muted">Loading library…</p>
+      </div>
+    </section>
+
+    <section id="tab-about" class="tab-panel">
+      <h2>How it works</h2>
+      <ol>
+        <li>Add an image-capable provider once at <a href="https://readycode.ai/byok" target="_blank">readycode.ai/byok</a> (OpenRouter recommended — one key covers Nano Banana, GPT-Image, Flux…).</li>
+        <li>Sign in to ReadyCode in your browser. The extension picks up your session automatically.</li>
+        <li>Right-click any product image on the web → <em>Grab this image with ReadyCode ImageKit</em>, or paste a URL.</li>
+        <li>Pick a style, hit Generate. Your AI key bills you directly. ReadyCode never touches an image model.</li>
+        <li>Save up to 100 images / 200 MB free in your Library — accessible from any device at <a href="https://readycode.ai/imagekit/library" target="_blank">readycode.ai/imagekit/library</a>.</li>
+      </ol>
+      <p class="muted">Privacy: scrapes only fetch public page HTML. Your BYOK key never leaves ReadyCode's vault. Generated images live in a private storage bucket scoped to your account.</p>
+    </section>
+  </main>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
