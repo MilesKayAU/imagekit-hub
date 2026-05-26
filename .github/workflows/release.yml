@@ -1,0 +1,49 @@
+name: Build extension zip
+
+# Builds readycode-imagekit.zip from the extension/ folder and attaches it to:
+#  - every GitHub Release (when you publish one), AND
+#  - a rolling "latest-build" pre-release on every push to main so the
+#    /releases/latest/download/readycode-imagekit.zip URL always works
+#    even before you cut a real v1.x tag.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip from extension/
+        run: |
+          cd extension
+          zip -r ../readycode-imagekit.zip . -x "*.DS_Store" "*.map"
+          cd ..
+          unzip -l readycode-imagekit.zip
+
+      - name: Attach to tagged release
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: readycode-imagekit.zip
+
+      - name: Update rolling latest-build release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          name: Latest build (auto)
+          prerelease: true
+          files: readycode-imagekit.zip
+          body: |
+            Auto-built from the latest commit on `main`.
+            For stable releases, see the tagged versions.
