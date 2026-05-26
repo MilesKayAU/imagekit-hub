@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.20 — Video "Polish with AI" actually rewrites the prompt
+- Rebuilt the Image → Video polish flow with a full motion-director rubric (Subject → Motion → Camera → Environment → Style → Timing → Audio → Negatives) tuned for Veo, Sora, Grok Imagine, Kling, Luma, PixVerse, Hailuo, and Wan.
+- Directives are now embedded inline in the user prompt, so the backend's handling of `system`/`style` no longer matters — the model always sees the full rubric, target models, target duration, and audio-capability flag.
+- Surfaces empty/failed responses instead of silently doing nothing; strips stray code fences/quotes from output; blocks polish until a provider key is selected.
+
 ## 1.0.19 — Echo job identity on status polls
 - `imagekit-video-status` POST now echoes back the snake_case `provider`, `provider_id`, `model_slug`, `status_url`, and `response_url` returned by the generate response. Without these the backend rejected every poll with 400 and the slot hung on Queued forever (OpenRouter was never polled).
 
