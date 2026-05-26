@@ -716,6 +716,8 @@ async function consumePending() {
     const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
     if (activeTab === "ugc") {
       ugcSetSource({ url: rc_imagekit_pending.src, dataUrl: rc_imagekit_pending.src });
+    } else if (activeTab === "video") {
+      videoSetSource({ url: rc_imagekit_pending.src, dataUrl: rc_imagekit_pending.src });
     } else {
       setSource({ url: rc_imagekit_pending.src, dataUrl: rc_imagekit_pending.src });
       const respinTab = document.querySelector('[data-tab="respin"]');
