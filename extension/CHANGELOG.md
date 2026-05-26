@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.10
+- UGC tab now shows **"Next shot will use: {provider} → {model}"** under the model picker so you can verify before generating. If you pick Grok / custom model but your Respin provider isn't an OpenRouter key, a red warning explains why the override is ignored (the BYOK backend only honors the model id for OpenRouter providers).
+
 ## 1.0.9
 - Right-click **Grab this image** now routes to the active tab: if the UGC tab is open, the grabbed image becomes the UGC source; otherwise it lands in Respin as before.
 
