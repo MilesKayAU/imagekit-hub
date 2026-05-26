@@ -48,6 +48,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .status { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 13px; }
 .status.hidden { display: none; }
 .status.info { background: #eef; color: #335; }
+
+.enhanced-block { margin-top: 8px; padding: 10px; background: #f6f5ff; border: 1px solid #ddd6fe; border-radius: 6px; }
+.enhanced-block.hidden { display: none; }
+.enhanced-block textarea { background: #fff; }
 .status.error { background: #fee; color: #a33; }
 .status.success { background: #efe; color: #373; }
 
