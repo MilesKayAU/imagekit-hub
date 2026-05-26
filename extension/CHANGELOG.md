@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.11
+- **Fixed silent fallback to Gemini in UGC model picker.** The "Grok Imagine" preset sent `x-ai/grok-imagine`, which doesn't exist on OpenRouter — OpenRouter silently routed those requests to a default Gemini image model. Grok Imagine is not currently exposed by OpenRouter (only via xAI's own API), so the preset has been removed. Replaced with **GPT‑5 Image** and **GPT‑5.4 Image 2** presets alongside the two Gemini options — all four are verified against `openrouter.ai/api/v1/models`. The custom model id field still accepts any valid OpenRouter slug.
+
 ## 1.0.10
 - UGC tab now shows **"Next shot will use: {provider} → {model}"** under the model picker so you can verify before generating. If you pick Grok / custom model but your Respin provider isn't an OpenRouter key, a red warning explains why the override is ignored (the BYOK backend only honors the model id for OpenRouter providers).
 
