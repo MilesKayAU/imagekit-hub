@@ -1727,6 +1727,44 @@ async function generateVideoSlot(i) {
   }
 }
 
+// Backends/providers return the finished video URL under many different keys.
+// Walk the response and pick the first plausible one.
+function extractVideoUrl(data) {
+  if (!data || typeof data !== "object") return null;
+  const isVidUrl = (v) =>
+    typeof v === "string" &&
+    /^https?:\/\//i.test(v) &&
+    (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(v) ||
+      /\/video\//i.test(v) ||
+      /fal\.media|openrouter|grok|x\.ai|replicate|runpod|supabase|amazonaws|cloudfront/i.test(v));
+  const direct = [
+    data.video_url, data.url, data.output_url, data.result_url, data.asset_url,
+    data.download_url, data.media_url, data.file_url, data.signed_url,
+    data.video?.url, data.output?.url, data.result?.url, data.asset?.url,
+    data.data?.video_url, data.data?.url, data.response?.video_url, data.response?.url,
+  ];
+  for (const v of direct) if (isVidUrl(v) || (typeof v === "string" && /^https?:/i.test(v))) return v;
+  const arrays = [
+    data.unsigned_urls, data.signed_urls, data.urls, data.outputs, data.assets,
+    data.videos, data.results, data.files, data.media,
+    data.output?.outputs, data.output?.assets, data.output?.videos,
+    data.response?.assets, data.response?.outputs, data.data?.assets, data.data?.outputs,
+  ];
+  for (const arr of arrays) {
+    if (!Array.isArray(arr)) continue;
+    for (const item of arr) {
+      if (typeof item === "string" && /^https?:/i.test(item)) return item;
+      if (item && typeof item === "object") {
+        const v = item.url || item.video_url || item.signed_url || item.unsigned_url || item.download_url;
+        if (typeof v === "string" && /^https?:/i.test(v)) return v;
+      }
+    }
+  }
+  // last resort: any https url in the top-level values that looks like a video host
+  for (const v of Object.values(data)) if (isVidUrl(v)) return v;
+  return null;
+}
+
 async function pollVideoJob(i) {
   const slot = video.slots[i];
   const started = Date.now();
