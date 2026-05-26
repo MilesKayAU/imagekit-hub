@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "ReadyCode ImageKit",
+  "version": "1.0.1",
+  "description": "Free BYOK AI image studio. Generate from a prompt or respin any image with your own AI provider key. Saves to your ReadyCode library.",
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "activeTab",
+    "contextMenus",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://readycode.ai/*",
+    "https://*.readycode.ai/*",
+    "https://gmlnipblxehgadagxakt.supabase.co/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": {
+    "default_title": "ReadyCode ImageKit",
+    "default_icon": "icon.png"
+  },
+  "icons": { "48": "icon.png", "128": "icon.png" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
