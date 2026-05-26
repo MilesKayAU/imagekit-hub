@@ -36,6 +36,10 @@ const state = {
   sourceDataUrl: null, // for preview only (uploads / tab capture)
   style: "lifestyle",
   result: null,        // { image_base64, mime_type, provider_name, model_name }
+  extras: [],          // [{ url, dataUrl }] — extra reference images
+  lastPrompt: "",      // last prompt sent, for refine history display
+  lastProviderId: null,
+  lastModel: null,
 };
 
 // --- tiny DOM helpers ---
@@ -169,6 +173,47 @@ $("grab-tab").addEventListener("click", async () => {
   } catch (e) {
     setStatus(`Couldn't capture tab: ${e.message}`, "error");
   }
+});
+
+// --- extras strip ---
+function renderExtras() {
+  const strip = $("extras-strip");
+  if (!state.extras.length) {
+    strip.classList.add("empty");
+    strip.innerHTML = '<span class="muted">No extras added.</span>';
+    return;
+  }
+  strip.classList.remove("empty");
+  strip.innerHTML = "";
+  state.extras.forEach((ex, i) => {
+    const t = document.createElement("div");
+    t.className = "thumb";
+    const img = document.createElement("img");
+    img.src = ex.dataUrl || ex.url;
+    const x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "×";
+    x.title = "Remove";
+    x.addEventListener("click", () => { state.extras.splice(i, 1); renderExtras(); });
+    t.appendChild(img);
+    t.appendChild(x);
+    strip.appendChild(t);
+  });
+}
+
+function addExtra(url, dataUrl) {
+  if (state.extras.length >= 3) { setStatus("Up to 3 extra references.", "error"); return; }
+  state.extras.push({ url, dataUrl: dataUrl || url });
+  renderExtras();
+}
+
+$("extra-file").addEventListener("change", (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => addExtra(reader.result, reader.result);
+  reader.readAsDataURL(f);
+  e.target.value = "";
 });
 
 // --- style chips ---
