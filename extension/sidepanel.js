@@ -740,6 +740,7 @@ async function bootstrap() {
       }
     }
     refreshGenerateButton();
+    updateModelPickerVisibility();
   } catch (e) {
     setStatus(`Couldn't load BYOK providers: ${e.message}`, "error");
   }
