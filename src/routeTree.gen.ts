@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as InstallRouteImport } from './routes/install'
 import { Route as IndexRouteImport } from './routes/index'
 
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstallRoute = InstallRouteImport.update({
   id: '/install',
   path: '/install',
@@ -26,31 +32,42 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/install': typeof InstallRoute
+  '/privacy': typeof PrivacyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/install': typeof InstallRoute
+  '/privacy': typeof PrivacyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/install': typeof InstallRoute
+  '/privacy': typeof PrivacyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/install'
+  fullPaths: '/' | '/install' | '/privacy'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/install'
-  id: '__root__' | '/' | '/install'
+  to: '/' | '/install' | '/privacy'
+  id: '__root__' | '/' | '/install' | '/privacy'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InstallRoute: typeof InstallRoute
+  PrivacyRoute: typeof PrivacyRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/install': {
       id: '/install'
       path: '/install'
@@ -71,6 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InstallRoute: InstallRoute,
+  PrivacyRoute: PrivacyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
