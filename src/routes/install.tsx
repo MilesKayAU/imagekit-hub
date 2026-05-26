@@ -7,10 +7,8 @@ const TITLE = "Install ReadyCode ImageKit";
 const DESCRIPTION =
   "Install the ReadyCode ImageKit Chrome extension from the Web Store, or load the open-source build from GitHub in under a minute.";
 const URL = "https://imagekit.readycode.ai/install";
-const GITHUB_LATEST_BUILD_ZIP =
-  "https://github.com/MilesKayAU/imagekit-hub/releases/download/latest-build/readycode-imagekit.zip";
-const GITHUB_LATEST_BUILD_RELEASE =
-  "https://github.com/MilesKayAU/imagekit-hub/releases/tag/latest-build";
+const HOSTED_ZIP = "https://imagekit.readycode.ai/readycode-imagekit-oss.zip";
+const GITHUB_REPO = "https://github.com/MilesKayAU/imagekit-hub";
 
 export const Route = createFileRoute("/install")({
   component: InstallPage,
@@ -28,7 +26,7 @@ export const Route = createFileRoute("/install")({
 
 function InstallPage() {
   const handleGitHubDownload = () => {
-    window.open(GITHUB_LATEST_BUILD_ZIP, "_blank", "noopener,noreferrer");
+    window.open(HOSTED_ZIP, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -73,26 +71,26 @@ function InstallPage() {
             Download latest build zip (v{EXTENSION_VERSION})
           </button>
           <a
-            href={GITHUB_LATEST_BUILD_RELEASE}
+            href={GITHUB_REPO}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
-            Open GitHub release page
+            View source on GitHub
           </a>
         </div>
         <ol className="mt-6 list-decimal space-y-3 pl-6 text-sm text-muted-foreground">
           <li>
             Download the latest build zip:{" "}
             <a
-              href={GITHUB_LATEST_BUILD_ZIP}
+              href={HOSTED_ZIP}
               target="_blank"
               rel="noreferrer"
               className="text-foreground underline-offset-4 hover:underline"
             >
-              readycode-imagekit.zip (latest build)
+              readycode-imagekit-oss.zip (latest build)
             </a>
-            , or open the release page above, or clone the repo and use the <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">extension/</code> folder.
+            , or clone the repo and use the <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">extension/</code> folder.
           </li>
           <li>Unzip it somewhere stable on your machine.</li>
           <li>
