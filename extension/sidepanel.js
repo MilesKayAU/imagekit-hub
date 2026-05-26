@@ -1864,24 +1864,50 @@ $("vp-polish").addEventListener("click", async () => {
   const userPrompt = ($("vp-master").value || composeMasterFromFields()).trim();
   if (!userPrompt) { videoStatus("Compose or type a master prompt first.", "error"); return; }
   const providerId = $("provider").value || null;
+  if (!providerId || state.providers.length === 0) {
+    videoStatus("Add and select an AI provider key first (top of panel).", "error");
+    return;
+  }
   const longestDur = Math.max(...video.slots.map((s) => s.duration));
+  const shortestDur = Math.min(...video.slots.map((s) => s.duration));
   const audioCapable = video.slots.some((s) => VIDEO_MODELS[s.model]?.audio);
+  const targetModels = [...new Set(video.slots.map((s) => VIDEO_MODELS[s.model]?.label || s.model))].join(", ");
   $("vp-polish").disabled = true;
-  videoStatus("Polishing with your AI…", "info");
+  videoStatus("Polishing prompt with your AI…", "info");
   try {
-    const sys = `${VIDEO_PROMPT_SYSTEM}\nTarget duration: ${longestDur}s.\nAudio-capable slot present: ${audioCapable ? "yes" : "no"}.`;
+    // Embed all directives inline so the backend's behaviour around `system` / `style`
+    // doesn't matter — the model sees the full rubric in the user prompt regardless.
+    const directive = [
+      VIDEO_PROMPT_SYSTEM,
+      "",
+      `Target models: ${targetModels}.`,
+      `Target duration: ${shortestDur === longestDur ? `${longestDur}s` : `${shortestDur}–${longestDur}s`}.`,
+      `Audio-capable slot present: ${audioCapable ? "yes — include rich audio line" : "no — write \"Audio: n/a\""}.`,
+      "",
+      "USER ROUGH PROMPT (rewrite into ONE final image-to-video prompt following the rubric above, return ONLY the rewritten prompt text):",
+      userPrompt,
+    ].join("\n");
+
     const data = await api("imagekit-enhance-prompt", {
       provider_id: providerId,
-      system: sys,
-      prompt: userPrompt,
-      style: "video_prompt",
+      system: VIDEO_PROMPT_SYSTEM,
+      prompt: directive,
+      style: "cinematic",
+      mode: "video",
     });
-    const out = (data?.enhanced_prompt || data?.text || "").trim();
-    if (!out) throw new Error("No polished prompt returned.");
+
+    let out = (data?.enhanced_prompt || data?.text || data?.prompt || data?.output || "").trim();
+    // Strip code fences / surrounding quotes if the model wrapped its output.
+    out = out.replace(/^```[a-z]*\s*|\s*```$/gi, "").replace(/^["'`]+|["'`]+$/g, "").trim();
+    if (!out) {
+      const raw = JSON.stringify(data).slice(0, 200);
+      throw new Error(`Empty response from AI provider. Backend returned: ${raw}`);
+    }
     $("vp-master").value = out;
     refreshVideoGenerateAll();
-    videoStatus("Master prompt polished — Apply to all slots when ready.", "success");
+    videoStatus("Master prompt polished — review then Apply to all slots.", "success");
   } catch (e) {
+    console.error("[video polish]", e);
     videoStatus(`Couldn't polish: ${e.message}`, "error");
   } finally {
     $("vp-polish").disabled = false;
