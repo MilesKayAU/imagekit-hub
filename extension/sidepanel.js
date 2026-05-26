@@ -1243,15 +1243,22 @@ async function saveUgcShot(i) {
       image_base64: shot.result.image_base64,
       mime_type: shot.result.mime_type,
       kind: "ugc",
+      album: ugc.albumName,
+      session_id: ugc.sessionId,
       source_metadata: {
         prompt: shot.prompt,
         subject_type: ugc.subjectType,
         shot_index: i + 1,
+        shot_count: ugc.shots.length,
+        ugc_album: ugc.albumName,
+        ugc_session_id: ugc.sessionId,
         provider: shot.result.provider_name,
         model: shot.result.model_name,
         source_urls: [ugc.sourceUrl].filter((s) => s && !s.startsWith("data:")),
       },
     });
+    shot.saved = true;
+    renderUgcChain();
     ugcStatus(`Shot ${i + 1} saved to library ✓`, "success");
   } catch (e) {
     ugcStatus(`Save failed: ${e.message}`, "error");
@@ -1263,9 +1270,55 @@ function downloadUgcShot(i) {
   if (!shot?.result) return;
   const a = document.createElement("a");
   a.href = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
-  a.download = `readycode-ugc-${i + 1}-${Date.now()}.png`;
+  const slug = (ugc.albumName || "ugc").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40);
+  a.download = `${slug}-shot-${i + 1}.png`;
   a.click();
 }
+
+// --- bulk actions ---
+function ugcReadyShots() { return ugc.shots.map((s, i) => ({ s, i })).filter(({ s }) => !!s.result); }
+function ugcSelectedShots() { return ugcReadyShots().filter(({ s }) => s.selected); }
+
+async function downloadUgcMany(list, label) {
+  if (!list.length) { ugcStatus(`No shots to ${label}.`, "error"); return; }
+  for (const { i } of list) {
+    downloadUgcShot(i);
+    await new Promise((r) => setTimeout(r, 250)); // browsers throttle rapid downloads
+  }
+  ugcStatus(`${label}: ${list.length} shot(s) downloaded.`, "success");
+}
+async function saveUgcMany(list, label) {
+  if (!list.length) { ugcStatus(`No shots to ${label}.`, "error"); return; }
+  let ok = 0, fail = 0;
+  for (const { i } of list) {
+    try { await saveUgcShot(i); ok++; } catch (_) { fail++; }
+  }
+  ugcStatus(`${label}: ${ok} saved${fail ? `, ${fail} failed` : ""}.`, fail ? "error" : "success");
+}
+
+function wireUgcToolbars() {
+  document.querySelectorAll(".ugc-select-all").forEach((b) =>
+    b.addEventListener("click", () => {
+      const ready = ugcReadyShots();
+      const allSelected = ready.length > 0 && ready.every(({ s }) => s.selected);
+      ready.forEach(({ s }) => { s.selected = !allSelected; });
+      renderUgcChain();
+    })
+  );
+  document.querySelectorAll(".ugc-download-selected").forEach((b) =>
+    b.addEventListener("click", () => downloadUgcMany(ugcSelectedShots(), "Download selected"))
+  );
+  document.querySelectorAll(".ugc-save-selected").forEach((b) =>
+    b.addEventListener("click", () => saveUgcMany(ugcSelectedShots(), "Save selected"))
+  );
+  document.querySelectorAll(".ugc-download-all").forEach((b) =>
+    b.addEventListener("click", () => downloadUgcMany(ugcReadyShots(), "Download all"))
+  );
+  document.querySelectorAll(".ugc-save-all").forEach((b) =>
+    b.addEventListener("click", () => saveUgcMany(ugcReadyShots(), "Save all"))
+  );
+}
+wireUgcToolbars();
 
 // Initialise default template
 loadUgcTemplate("person");
