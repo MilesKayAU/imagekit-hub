@@ -2178,6 +2178,32 @@ async function rvCallRewriter(providerId, directive) {
   return parsed;
 }
 
+// Tries the new server-side Gemini analyzer (imagekit-analyze-video). Returns
+// the analysis JSON on success, or null when the endpoint is unavailable / the
+// platform isn't supported, in which case the caller falls back to the
+// metadata-only text rewriter path.
+async function rvCallAnalyzer(parsed, directive, mode, audioCapable) {
+  try {
+    const data = await api("imagekit-analyze-video", {
+      url: parsed.url,
+      platform: parsed.platform,
+      mode,
+      audio_capable_target: audioCapable,
+      system: RV_SYSTEM,
+      directive,
+    });
+    if (!data || data.fallback === "text_only") return null;
+    if (data.analysis && typeof data.analysis === "object") return data.analysis;
+    // Some implementations might return the analysis at the top level.
+    if (data.slot_prompts) return data;
+    return null;
+  } catch (e) {
+    // 404 / not deployed yet, or any transient analyzer error → fall back.
+    console.warn("[rv] analyzer unavailable, falling back to text rewriter:", e?.message || e);
+    return null;
+  }
+}
+
 async function rvAnalyze(url, mode) {
   const parsed = rvParseUrl(url);
   if (!parsed) throw new Error("That URL doesn't look valid.");
@@ -2208,7 +2234,19 @@ async function rvAnalyze(url, mode) {
     "RETURN ONLY THE JSON OBJECT specified above. No prose. No code fences.",
   ].filter(Boolean).join("\n");
 
-  let result = await rvCallRewriter(providerId, directive);
+  // Prefer the Gemini-backed analyzer for platforms it can ingest (YouTube /
+  // Shorts). On 404 / fallback / error we silently use the metadata rewriter.
+  let result = null;
+  let usedAnalyzer = false;
+  if (parsed.platform === "youtube" || parsed.platform === "shorts") {
+    rvStatus("Watching the reference with Gemini…", "info");
+    result = await rvCallAnalyzer(parsed, directive, mode, audioCapable);
+    if (result) usedAnalyzer = true;
+  }
+  if (!result) {
+    rvStatus("Analyzing from metadata…", "info");
+    result = await rvCallRewriter(providerId, directive);
+  }
 
   // Duration enforcement
   let total = rvSumDuration(result);
@@ -2225,7 +2263,7 @@ async function rvAnalyze(url, mode) {
     if (total < 8 || total > 15) { result = rvClampTo15(result); trimmed = true; }
   }
 
-  result.__meta = { parsed, oembed: meta, mode, trimmed };
+  result.__meta = { parsed, oembed: meta, mode, trimmed, source: usedAnalyzer ? "gemini-video" : "text-rewriter" };
   return result;
 }
 
