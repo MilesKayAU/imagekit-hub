@@ -1703,19 +1703,32 @@ function renderVideoSlots() {
 
     if (slot.result?.video_url) {
       const v = document.createElement("video");
-      v.src = slot.result.video_url;
+      v.src = slot.playbackUrl || slot.result.video_url;
       v.controls = true;
       v.loop = true;
       v.preload = "metadata";
       v.playsInline = true;
-      v.crossOrigin = "anonymous";
       v.addEventListener("error", () => {
         const mediaErr = v.error;
         const reason = mediaErr?.message || ({ 1: "loading aborted", 2: "network error", 3: "decode error", 4: "unsupported format" }[mediaErr?.code] || "playback failed");
-        console.warn(`[video-slot ${i + 1}] playback failed`, { url: slot.result.video_url, code: mediaErr?.code, reason });
+        const originalUrl = slot.result?.video_url;
+        console.warn(`[video-slot ${i + 1}] playback failed`, { url: v.currentSrc || slot.playbackUrl || originalUrl, code: mediaErr?.code, reason });
+        if (!slot.playbackUrl && originalUrl) {
+          hydrateVideoPlaybackUrl(i, originalUrl)
+            .then((ok) => {
+              if (!ok) videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
+            })
+            .catch(() => {
+              videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
+            });
+          return;
+        }
         videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
       });
       card.appendChild(v);
+      if (!slot.playbackUrl && !slot.playbackLoading && shouldWarmBlobPlayback(slot.result.video_url)) {
+        hydrateVideoPlaybackUrl(i, slot.result.video_url).catch(() => {});
+      }
       const meta = document.createElement("div");
       meta.className = "shot-meta muted";
       meta.style.fontSize = "11px"; meta.style.marginTop = "4px";
@@ -1735,6 +1748,9 @@ async function generateVideoSlot(i) {
   const prompt = (slot.prompt || $("vp-master").value || "").trim();
   if (!prompt) { videoStatus(`Slot ${i + 1} needs a prompt.`, "error"); return; }
   const providerId = $("provider").value || null;
+  revokeSlotPlaybackUrl(slot);
+  slot.result = null;
+  slot.saved = false;
   slot.requestProviderId = providerId;
   slot.status = "queued";
   slot.progressMsg = "Submitting job…";
