@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import heroSource from "@/assets/hero-source.png";
+import heroResult from "@/assets/hero-result.png";
 
 const TITLE = "ReadyCode ImageKit — AI image studio in your browser side panel";
 const DESCRIPTION =
@@ -24,35 +26,81 @@ function Index() {
     <>
       {/* Hero */}
       <section className="border-b border-border/60">
-        <div className="mx-auto max-w-6xl px-6 py-20 sm:py-28">
-          <div className="flex flex-col items-start gap-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Open source · MIT · BYOK
-            </span>
-            <h1 className="max-w-3xl text-5xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-6xl md:text-7xl">
-              AI image generation,
-              <br />
-              <span className="text-primary">right in your side panel.</span>
-            </h1>
-            <p className="max-w-2xl text-lg text-muted-foreground">
-              ReadyCode ImageKit is a free Chrome extension that lets you generate, respin and save AI images from any tab — using your own AI provider key. No subscription, no markup.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                to="/install"
-                className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Install for Chrome
-              </Link>
-              <a
-                href="https://github.com/MilesKayAU/imagekit-hub"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center rounded-md border border-border bg-card px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                View on GitHub
-              </a>
+        <div className="mx-auto max-w-6xl px-6 py-16 sm:py-24">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
+            <div className="flex flex-col items-start gap-7">
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Open source · MIT · BYOK
+              </span>
+              <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-6xl">
+                Turn any product shot into a{" "}
+                <span className="text-primary">scroll-stopping scene.</span>
+              </h1>
+              <p className="max-w-xl text-lg text-muted-foreground">
+                ReadyCode ImageKit is a free Chrome extension that respins, refines and saves AI product imagery from any tab — using your own AI provider key. No subscription, no markup.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  to="/install"
+                  className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Install for Chrome
+                </Link>
+                <a
+                  href="https://github.com/MilesKayAU/imagekit-hub"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-md border border-border bg-card px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  View on GitHub
+                </a>
+              </div>
+            </div>
+
+            {/* Before → After showcase */}
+            <div className="relative">
+              <div className="absolute -inset-6 -z-10 rounded-3xl bg-gradient-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
+              <div className="grid grid-cols-[1fr_auto_1.4fr] items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-xl sm:gap-4 sm:p-5">
+                <figure className="flex flex-col gap-2">
+                  <div className="overflow-hidden rounded-lg border border-border bg-muted/40 aspect-square flex items-center justify-center p-3">
+                    <img
+                      src={heroSource}
+                      alt="Original product pouch — coffee machine cleaning tablets"
+                      className="max-h-full max-w-full object-contain"
+                      loading="eager"
+                    />
+                  </div>
+                  <figcaption className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Source
+                  </figcaption>
+                </figure>
+
+                <div className="flex flex-col items-center gap-1 text-primary">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Respin</span>
+                </div>
+
+                <figure className="flex flex-col gap-2">
+                  <div className="overflow-hidden rounded-lg border border-border aspect-square">
+                    <img
+                      src={heroResult}
+                      alt="AI-generated lifestyle scene: cleaning tablets beside a Breville espresso machine"
+                      className="h-full w-full object-cover"
+                      loading="eager"
+                    />
+                  </div>
+                  <figcaption className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                    AI respin · lifestyle scene
+                  </figcaption>
+                </figure>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Prompt:</span> Take these coffee cleaning tablets and create a Shopify-ready shoot — beside a coffee machine, perfect lighting, hero placement.
+              </div>
             </div>
           </div>
         </div>
