@@ -1343,15 +1343,25 @@ updateUgcModelChips();
 // Tips reflect the structured prompt pattern from
 // https://deevid.ai/blog/grok-imagine-video-review:
 //   Subject → Motion → Camera → Environment → Style → Timing → Audio intent
-const VIDEO_PROMPT_SYSTEM = `You are a senior motion director writing prompts for AI image-to-video models (Grok Imagine Video, Google Veo, Kling).
-Rewrite the user's rough idea into ONE production-ready video prompt that follows this structure:
-Subject → Motion → Camera → Environment → Style → Timing → Audio intent.
-Rules:
-- Keep the subject locked to what is in the source image. Do not change identity, wardrobe, or product details.
-- Insert ONE explicit motion verb (rotate, dolly-in, pan-left, orbit, push-in, parallax, walk-cycle, etc).
-- Match pacing language to the target duration (slow elegant reveal for 10s+, snappy loop for 5s, building energy for in-between).
-- Audio line: include only if the target model supports synced audio (Veo / Sora). For Grok / Kling, return the line "Audio: n/a".
-- Under 90 words. No preamble, no bullets, no markdown. Return only the prompt text.`;
+const VIDEO_PROMPT_SYSTEM = `You are a senior motion director and prompt engineer for image-to-video AI models (Veo 3 / 3.1, Sora 2, Grok Imagine, Kling 2.1/3, Luma Ray, PixVerse, Hailuo, Wan).
+
+Rewrite the user's rough idea into ONE production-ready image-to-video prompt that maximises motion fidelity and shot quality across these models. Follow this exact structure on a single paragraph, in this order:
+
+1. SUBJECT — describe what is in the source image in concrete nouns and adjectives. Lock identity, wardrobe, product, logo, pose. Do NOT invent new objects or change colour, age, or branding.
+2. MOTION — one primary motion verb (dolly-in, dolly-out, orbit-left, orbit-right, push-in, pull-back, pan-left, pan-right, tilt-up, tilt-down, parallax, crane-up, handheld float, rack-focus, rotate 360°, walk-cycle, gentle sway). Optionally one secondary micro-motion (hair drift, fabric flutter, steam rising, light flicker, liquid pour, particles).
+3. CAMERA — focal length (24mm wide, 35mm, 50mm, 85mm portrait, macro), depth of field (shallow / deep), framing (close-up, medium, wide, over-the-shoulder), rig (locked-off, gimbal, handheld). Add intent ("subject stays centred, no cuts").
+4. ENVIRONMENT — location, surface, lighting direction & quality (golden-hour rim, soft north window, neon street wet ground, studio softbox high-key), atmosphere (haze, dust motes, mist), time of day.
+5. STYLE — visual reference ("premium commercial spot", "A24 cinematic", "Wes Anderson symmetry", "UGC iPhone vertical", "anime cel", "documentary 16mm grain"). Colour grade ("teal-orange", "warm desaturated", "high-contrast B&W").
+6. TIMING — pacing matched to the target duration. 5s → snappy single beat, seamless loop friendly. 6–8s → one clean reveal with ease-in/ease-out. 10s+ → slow build, two beats max. State seconds explicitly ("over 8 seconds, ease-in 0–2s, hold 2–6s, ease-out 6–8s").
+7. AUDIO — include ONLY if any target model supports synced audio (Veo, Sora, Wan 2.6). Describe diegetic sound design ("ambient room tone, subtle fabric rustle, no dialogue, no music"). Otherwise write exactly "Audio: n/a".
+8. NEGATIVES — append "Avoid: morphing, identity drift, extra limbs, text artefacts, jump cuts, watermark, logo distortion."
+
+Hard rules:
+- Output ONLY the final prompt. No preamble, no headings, no bullets, no markdown, no quotes.
+- 60–110 words. Dense, comma-separated clauses. Present tense.
+- Never contradict the source image. If the user invents details not in the image, drop them.
+- Exactly one primary motion verb. No "and then" sequences.
+- Use concrete cinematography vocabulary, not vague adjectives ("beautiful", "amazing", "stunning" are banned).`;
 
 // Provider is inferred from slug prefix: fal-ai/* → fal, anything else → openrouter.
 // Backend (imagekit-video-generate) routes by the same rule.
@@ -1854,24 +1864,50 @@ $("vp-polish").addEventListener("click", async () => {
   const userPrompt = ($("vp-master").value || composeMasterFromFields()).trim();
   if (!userPrompt) { videoStatus("Compose or type a master prompt first.", "error"); return; }
   const providerId = $("provider").value || null;
+  if (!providerId || state.providers.length === 0) {
+    videoStatus("Add and select an AI provider key first (top of panel).", "error");
+    return;
+  }
   const longestDur = Math.max(...video.slots.map((s) => s.duration));
+  const shortestDur = Math.min(...video.slots.map((s) => s.duration));
   const audioCapable = video.slots.some((s) => VIDEO_MODELS[s.model]?.audio);
+  const targetModels = [...new Set(video.slots.map((s) => VIDEO_MODELS[s.model]?.label || s.model))].join(", ");
   $("vp-polish").disabled = true;
-  videoStatus("Polishing with your AI…", "info");
+  videoStatus("Polishing prompt with your AI…", "info");
   try {
-    const sys = `${VIDEO_PROMPT_SYSTEM}\nTarget duration: ${longestDur}s.\nAudio-capable slot present: ${audioCapable ? "yes" : "no"}.`;
+    // Embed all directives inline so the backend's behaviour around `system` / `style`
+    // doesn't matter — the model sees the full rubric in the user prompt regardless.
+    const directive = [
+      VIDEO_PROMPT_SYSTEM,
+      "",
+      `Target models: ${targetModels}.`,
+      `Target duration: ${shortestDur === longestDur ? `${longestDur}s` : `${shortestDur}–${longestDur}s`}.`,
+      `Audio-capable slot present: ${audioCapable ? "yes — include rich audio line" : "no — write \"Audio: n/a\""}.`,
+      "",
+      "USER ROUGH PROMPT (rewrite into ONE final image-to-video prompt following the rubric above, return ONLY the rewritten prompt text):",
+      userPrompt,
+    ].join("\n");
+
     const data = await api("imagekit-enhance-prompt", {
       provider_id: providerId,
-      system: sys,
-      prompt: userPrompt,
-      style: "video_prompt",
+      system: VIDEO_PROMPT_SYSTEM,
+      prompt: directive,
+      style: "cinematic",
+      mode: "video",
     });
-    const out = (data?.enhanced_prompt || data?.text || "").trim();
-    if (!out) throw new Error("No polished prompt returned.");
+
+    let out = (data?.enhanced_prompt || data?.text || data?.prompt || data?.output || "").trim();
+    // Strip code fences / surrounding quotes if the model wrapped its output.
+    out = out.replace(/^```[a-z]*\s*|\s*```$/gi, "").replace(/^["'`]+|["'`]+$/g, "").trim();
+    if (!out) {
+      const raw = JSON.stringify(data).slice(0, 200);
+      throw new Error(`Empty response from AI provider. Backend returned: ${raw}`);
+    }
     $("vp-master").value = out;
     refreshVideoGenerateAll();
-    videoStatus("Master prompt polished — Apply to all slots when ready.", "success");
+    videoStatus("Master prompt polished — review then Apply to all slots.", "success");
   } catch (e) {
+    console.error("[video polish]", e);
     videoStatus(`Couldn't polish: ${e.message}`, "error");
   } finally {
     $("vp-polish").disabled = false;
