@@ -1660,6 +1660,15 @@ function renderVideoSlots() {
       v.src = slot.result.video_url;
       v.controls = true;
       v.loop = true;
+      v.preload = "metadata";
+      v.playsInline = true;
+      v.crossOrigin = "anonymous";
+      v.addEventListener("error", () => {
+        const mediaErr = v.error;
+        const reason = mediaErr?.message || ({ 1: "loading aborted", 2: "network error", 3: "decode error", 4: "unsupported format" }[mediaErr?.code] || "playback failed");
+        console.warn(`[video-slot ${i + 1}] playback failed`, { url: slot.result.video_url, code: mediaErr?.code, reason });
+        videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
+      });
       card.appendChild(v);
       const meta = document.createElement("div");
       meta.className = "shot-meta muted";
@@ -1740,37 +1749,98 @@ async function generateVideoSlot(i) {
 // Walk the response and pick the first plausible one.
 function extractVideoUrl(data) {
   if (!data || typeof data !== "object") return null;
-  const isVidUrl = (v) =>
-    typeof v === "string" &&
-    /^https?:\/\//i.test(v) &&
-    (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(v) ||
-      /\/video\//i.test(v) ||
-      /fal\.media|openrouter|grok|x\.ai|replicate|runpod|supabase|amazonaws|cloudfront/i.test(v));
-  const direct = [
-    data.video_url, data.url, data.output_url, data.result_url, data.asset_url,
-    data.download_url, data.media_url, data.file_url, data.signed_url,
-    data.video?.url, data.output?.url, data.result?.url, data.asset?.url,
-    data.data?.video_url, data.data?.url, data.response?.video_url, data.response?.url,
+
+  const asHttpUrl = (value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+  };
+
+  const isNonMediaApiUrl = (value) => {
+    const v = String(value || "").toLowerCase();
+    return (
+      /\/functions\/v1\//.test(v) ||
+      /imagekit-video-(status|generate|save)/.test(v) ||
+      /[?&](status_url|response_url|job_id)=/.test(v) ||
+      /\/status([/?#]|$)/.test(v)
+    );
+  };
+
+  const looksLikeVideoAssetUrl = (value, key = "") => {
+    const v = asHttpUrl(value);
+    if (!v || isNonMediaApiUrl(v)) return false;
+    const lower = v.toLowerCase();
+    const keyLower = String(key || "").toLowerCase();
+    if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(lower)) return true;
+    if (/(video_url|download_url|media_url|asset_url|file_url|signed_url|stream_url)/.test(keyLower)) return true;
+    if (/[?&](download|dl|format|ext|mime|content_type)=/.test(lower) && /video|mp4|webm|mov|m4v/.test(lower)) return true;
+    return /fal\.media|replicate\.delivery|cloudfront\.net|amazonaws\.com|storage\.googleapis\.com|firebasestorage\.googleapis\.com/i.test(lower);
+  };
+
+  const candidateEntries = [
+    ["video_url", data.video_url],
+    ["output_url", data.output_url],
+    ["result_url", data.result_url],
+    ["asset_url", data.asset_url],
+    ["download_url", data.download_url],
+    ["media_url", data.media_url],
+    ["file_url", data.file_url],
+    ["signed_url", data.signed_url],
+    ["stream_url", data.stream_url],
+    ["video.url", data.video?.url],
+    ["output.video_url", data.output?.video_url],
+    ["output.asset_url", data.output?.asset_url],
+    ["output.url", data.output?.url],
+    ["result.video_url", data.result?.video_url],
+    ["result.asset_url", data.result?.asset_url],
+    ["result.url", data.result?.url],
+    ["asset.url", data.asset?.url],
+    ["data.video_url", data.data?.video_url],
+    ["data.output_url", data.data?.output_url],
+    ["data.result_url", data.data?.result_url],
+    ["data.asset_url", data.data?.asset_url],
+    ["data.download_url", data.data?.download_url],
+    ["data.media_url", data.data?.media_url],
+    ["data.file_url", data.data?.file_url],
+    ["data.signed_url", data.data?.signed_url],
+    ["response.video_url", data.response?.video_url],
+    ["response.asset_url", data.response?.asset_url],
+    ["response.download_url", data.response?.download_url],
   ];
-  for (const v of direct) if (isVidUrl(v) || (typeof v === "string" && /^https?:/i.test(v))) return v;
+
+  for (const [key, value] of candidateEntries) {
+    if (looksLikeVideoAssetUrl(value, key)) return asHttpUrl(value);
+  }
+
   const arrays = [
     data.unsigned_urls, data.signed_urls, data.urls, data.outputs, data.assets,
     data.videos, data.results, data.files, data.media,
     data.output?.outputs, data.output?.assets, data.output?.videos,
-    data.response?.assets, data.response?.outputs, data.data?.assets, data.data?.outputs,
+    data.response?.assets, data.response?.outputs, data.response?.videos,
+    data.data?.assets, data.data?.outputs, data.data?.videos,
   ];
   for (const arr of arrays) {
     if (!Array.isArray(arr)) continue;
     for (const item of arr) {
-      if (typeof item === "string" && /^https?:/i.test(item)) return item;
+      if (looksLikeVideoAssetUrl(item, "array-item")) return asHttpUrl(item);
       if (item && typeof item === "object") {
-        const v = item.url || item.video_url || item.signed_url || item.unsigned_url || item.download_url;
-        if (typeof v === "string" && /^https?:/i.test(v)) return v;
+        const nestedCandidates = [
+          ["video_url", item.video_url],
+          ["download_url", item.download_url],
+          ["signed_url", item.signed_url],
+          ["unsigned_url", item.unsigned_url],
+          ["asset_url", item.asset_url],
+          ["media_url", item.media_url],
+          ["file_url", item.file_url],
+          ["url", item.url],
+        ];
+        for (const [key, value] of nestedCandidates) {
+          if (looksLikeVideoAssetUrl(value, key)) return asHttpUrl(value);
+        }
       }
     }
   }
-  // last resort: any https url in the top-level values that looks like a video host
-  for (const v of Object.values(data)) if (isVidUrl(v)) return v;
+
   return null;
 }
 
