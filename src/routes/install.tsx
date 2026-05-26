@@ -130,6 +130,16 @@ function InstallPage() {
         </ol>
       </section>
 
+      <section className="mt-8 rounded-xl border border-border bg-card p-8">
+        <h2 className="text-2xl font-semibold text-foreground">What it does</h2>
+        <ul className="mt-6 list-disc space-y-2 pl-6 text-sm text-muted-foreground">
+          <li>Right-click any image on the web and respin it in a new style.</li>
+          <li>Refine any result with follow-up instructions — iterate without starting over.</li>
+          <li>Pull saved Library images in as references — combine a product shot with an ingredient, etc.</li>
+          <li>Save results to your ReadyCode Library, accessible from any device.</li>
+        </ul>
+      </section>
+
       <div className="mt-12 flex flex-wrap gap-3">
         <Link
           to="/"

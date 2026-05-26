@@ -36,6 +36,10 @@ const state = {
   sourceDataUrl: null, // for preview only (uploads / tab capture)
   style: "lifestyle",
   result: null,        // { image_base64, mime_type, provider_name, model_name }
+  extras: [],          // [{ url, dataUrl }] — extra reference images
+  lastPrompt: "",      // last prompt sent, for refine history display
+  lastProviderId: null,
+  lastModel: null,
 };
 
 // --- tiny DOM helpers ---
@@ -171,6 +175,47 @@ $("grab-tab").addEventListener("click", async () => {
   }
 });
 
+// --- extras strip ---
+function renderExtras() {
+  const strip = $("extras-strip");
+  if (!state.extras.length) {
+    strip.classList.add("empty");
+    strip.innerHTML = '<span class="muted">No extras added.</span>';
+    return;
+  }
+  strip.classList.remove("empty");
+  strip.innerHTML = "";
+  state.extras.forEach((ex, i) => {
+    const t = document.createElement("div");
+    t.className = "thumb";
+    const img = document.createElement("img");
+    img.src = ex.dataUrl || ex.url;
+    const x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "×";
+    x.title = "Remove";
+    x.addEventListener("click", () => { state.extras.splice(i, 1); renderExtras(); });
+    t.appendChild(img);
+    t.appendChild(x);
+    strip.appendChild(t);
+  });
+}
+
+function addExtra(url, dataUrl) {
+  if (state.extras.length >= 3) { setStatus("Up to 3 extra references.", "error"); return; }
+  state.extras.push({ url, dataUrl: dataUrl || url });
+  renderExtras();
+}
+
+$("extra-file").addEventListener("change", (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => addExtra(reader.result, reader.result);
+  reader.readAsDataURL(f);
+  e.target.value = "";
+});
+
 // --- style chips ---
 document.querySelectorAll(".chip").forEach((c) => {
   c.addEventListener("click", () => {
@@ -191,25 +236,82 @@ $("generate").addEventListener("click", async () => {
     const providerId = $("provider").value || null;
     const provider = state.providers.find((p) => p.id === providerId);
     const model = provider ? imageModelForProvider(provider) : null;
+    const images = [state.sourceUrl, ...state.extras.map((e) => e.url)].filter(Boolean);
     const data = await api("imagekit-generate", {
       provider_id: providerId,
       model,
       mode: "lifestyle",
       prompt: finalPrompt,
-      images: [state.sourceUrl],
+      images,
     });
     if (data.error) throw new Error(data.error);
     state.result = data;
+    state.lastPrompt = finalPrompt;
+    state.lastProviderId = providerId;
+    state.lastModel = model;
     const dataUrl = `data:${data.mime_type};base64,${data.image_base64}`;
     $("output-img").src = dataUrl;
     $("output-meta").textContent = `${data.provider_name} · ${data.model_name} · ${(data.duration_ms/1000).toFixed(1)}s`;
     $("output").classList.remove("hidden");
+    $("refine-history").textContent = "";
+    $("refine-prompt").value = "";
     setStatus("", "info");
   } catch (e) {
     setStatus(e.message || "Generation failed", "error");
   } finally {
     refreshGenerateButton();
   }
+});
+
+// --- refine / use as source / start over ---
+$("refine-btn").addEventListener("click", async () => {
+  if (!state.result) return;
+  const refineText = $("refine-prompt").value.trim();
+  if (!refineText) { setStatus("Type what you'd like to change.", "error"); return; }
+  $("refine-btn").disabled = true;
+  setStatus("Refining… 10–30s", "info");
+  try {
+    const currentDataUrl = `data:${state.result.mime_type};base64,${state.result.image_base64}`;
+    const images = [currentDataUrl, ...state.extras.map((e) => e.url)].filter(Boolean);
+    const data = await api("imagekit-generate", {
+      provider_id: state.lastProviderId,
+      model: state.lastModel,
+      mode: "refine",
+      prompt: refineText,
+      images,
+    });
+    if (data.error) throw new Error(data.error);
+    state.result = data;
+    const prev = state.lastPrompt;
+    state.lastPrompt = refineText;
+    const dataUrl = `data:${data.mime_type};base64,${data.image_base64}`;
+    $("output-img").src = dataUrl;
+    $("output-meta").textContent = `${data.provider_name} · ${data.model_name} · ${(data.duration_ms/1000).toFixed(1)}s`;
+    $("refine-history").textContent = `Previous: ${prev}`;
+    $("refine-prompt").value = "";
+    setStatus("", "info");
+  } catch (e) {
+    setStatus(e.message || "Refine failed", "error");
+  } finally {
+    $("refine-btn").disabled = false;
+  }
+});
+
+$("use-as-source").addEventListener("click", () => {
+  if (!state.result) return;
+  const dataUrl = `data:${state.result.mime_type};base64,${state.result.image_base64}`;
+  setSource({ url: dataUrl, dataUrl });
+  $("output").classList.add("hidden");
+  state.result = null;
+  setStatus("Using result as new source.", "success");
+});
+
+$("start-over").addEventListener("click", () => {
+  $("output").classList.add("hidden");
+  state.result = null;
+  $("refine-prompt").value = "";
+  $("refine-history").textContent = "";
+  setStatus("", "info");
 });
 
 $("download").addEventListener("click", () => {
@@ -250,36 +352,110 @@ $("save").addEventListener("click", async () => {
 });
 
 // --- library tab ---
+async function fetchLibraryRows(limit = 60) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/imagekit_assets?select=id,storage_path,kind,created_at,source_metadata&order=created_at.desc&limit=${limit}`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${state.token}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function signedUrlFor(storagePath) {
+  const su = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/imagekit-library/${storagePath}`, {
+    method: "POST", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn: 3600 }),
+  }).then((x) => x.ok ? x.json() : null).catch(() => null);
+  return su?.signedURL ? `${SUPABASE_URL}/storage/v1${su.signedURL}` : null;
+}
+
 async function renderLibrary() {
   const grid = $("library-grid");
   grid.innerHTML = "<p class='muted'>Loading…</p>";
   if (!state.token) { grid.innerHTML = "<p class='muted'>Sign in to ReadyCode to view your library.</p>"; return; }
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/imagekit_assets?select=id,storage_path,kind,created_at,source_metadata&order=created_at.desc&limit=60`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${state.token}` },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const rows = await res.json();
+    const rows = await fetchLibraryRows(60);
     if (!rows.length) { grid.innerHTML = "<p class='muted'>Your library is empty. Generate something on the Respin tab.</p>"; return; }
     grid.innerHTML = "";
     for (const r of rows) {
       const card = document.createElement("div");
       card.className = "asset";
       const img = document.createElement("img");
-      // Signed URL via storage
-      const su = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/imagekit-library/${r.storage_path}`, {
-        method: "POST", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ expiresIn: 3600 }),
-      }).then((x) => x.ok ? x.json() : null).catch(() => null);
-      if (su?.signedURL) img.src = `${SUPABASE_URL}/storage/v1${su.signedURL}`;
-      img.onclick = () => chrome.tabs.create({ url: img.src });
+      const url = await signedUrlFor(r.storage_path);
+      if (url) img.src = url;
+      img.onclick = () => { if (img.src) chrome.tabs.create({ url: img.src }); };
       card.appendChild(img);
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const useBtn = document.createElement("button");
+      useBtn.type = "button";
+      useBtn.textContent = "Use as source";
+      useBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!url) return;
+        setSource({ url, dataUrl: url });
+        activateTab("respin");
+      });
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.textContent = "Add as reference";
+      addBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!url) return;
+        addExtra(url, url);
+        activateTab("respin");
+      });
+      actions.appendChild(useBtn);
+      actions.appendChild(addBtn);
+      card.appendChild(actions);
       grid.appendChild(card);
     }
   } catch (e) {
     grid.innerHTML = `<p class='muted'>Couldn't load library: ${e.message}</p>`;
   }
 }
+
+// --- Library picker dialog (for Respin source / extras) ---
+const libPicker = document.getElementById("lib-picker");
+let libPickerTarget = "source"; // "source" | "extra"
+
+async function openLibPicker(target) {
+  libPickerTarget = target;
+  document.getElementById("lib-picker-title").textContent =
+    target === "source" ? "Pick source from Library" : "Add reference from Library";
+  const grid = document.getElementById("lib-picker-grid");
+  grid.innerHTML = "<p class='muted'>Loading…</p>";
+  libPicker.showModal();
+  if (!state.token) { grid.innerHTML = "<p class='muted'>Link the extension first.</p>"; return; }
+  try {
+    const rows = await fetchLibraryRows(40);
+    if (!rows.length) { grid.innerHTML = "<p class='muted'>Library is empty.</p>"; return; }
+    grid.innerHTML = "";
+    for (const r of rows) {
+      const card = document.createElement("div");
+      card.className = "asset";
+      const img = document.createElement("img");
+      const url = await signedUrlFor(r.storage_path);
+      if (url) img.src = url;
+      img.style.cursor = "pointer";
+      img.addEventListener("click", () => {
+        if (!url) return;
+        if (libPickerTarget === "source") setSource({ url, dataUrl: url });
+        else addExtra(url, url);
+        libPicker.close();
+      });
+      card.appendChild(img);
+      grid.appendChild(card);
+    }
+  } catch (e) {
+    grid.innerHTML = `<p class='muted'>Couldn't load: ${e.message}</p>`;
+  }
+}
+
+document.getElementById("pick-source-lib").addEventListener("click", () => openLibPicker("source"));
+document.getElementById("add-extra-lib").addEventListener("click", () => openLibPicker("extra"));
+document.getElementById("lib-picker-cancel").addEventListener("click", () => libPicker.close());
+
+renderExtras();
 
 // --- pending grab from context menu ---
 async function consumePending() {
