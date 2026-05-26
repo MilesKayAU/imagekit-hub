@@ -79,6 +79,19 @@
           <input id="source-file" type="file" accept="image/*" />
           <button id="grab-tab" class="secondary" title="Capture the visible area of the active tab">Grab visible tab</button>
         </div>
+        <div class="row">
+          <button id="pick-source-lib" class="secondary" type="button">Pick from Library</button>
+        </div>
+      </div>
+
+      <div class="block">
+        <label class="block-label">Extra reference images (optional)</label>
+        <p class="muted" style="margin:0 0 6px;">Combine multiple images — e.g. add an ingredient shot to a scene and tell the AI how to merge them.</p>
+        <div id="extras-strip" class="extras-strip empty"><span class="muted">No extras added.</span></div>
+        <div class="row">
+          <button id="add-extra-lib" class="secondary" type="button">Add from Library</button>
+          <input id="extra-file" type="file" accept="image/*" />
+        </div>
       </div>
 
       <div class="block">
@@ -107,6 +120,16 @@
           <button id="save" class="primary">Save to Library</button>
         </div>
         <div id="output-meta" class="muted"></div>
+        <div class="refine-block">
+          <label class="block-label" style="margin-top:12px;">Refine this result</label>
+          <p class="muted" id="refine-history" style="margin:0 0 6px;"></p>
+          <textarea id="refine-prompt" rows="2" placeholder="Tell the AI what to change — e.g. 'warmer lighting, add a wooden tray under it'."></textarea>
+          <div class="row">
+            <button id="refine-btn" class="primary" type="button">Refine</button>
+            <button id="use-as-source" class="secondary" type="button">Use as source</button>
+            <button id="start-over" class="secondary" type="button">Start over</button>
+          </div>
+        </div>
       </div>
 
       <div id="status" class="status hidden"></div>
@@ -130,6 +153,16 @@
       <p class="muted">Privacy: scrapes only fetch public page HTML. Your BYOK key never leaves ReadyCode's vault. Generated images live in a private storage bucket scoped to your account.</p>
     </section>
   </main>
+
+  <dialog id="lib-picker">
+    <div style="padding:14px;min-width:320px;max-width:520px;">
+      <h3 style="margin:0 0 8px;font-size:14px;" id="lib-picker-title">Pick from Library</h3>
+      <div id="lib-picker-grid" class="library-grid"><p class="muted">Loading…</p></div>
+      <div class="row" style="justify-content:flex-end;margin-top:10px;">
+        <button type="button" id="lib-picker-cancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </dialog>
 
   <script src="sidepanel.js"></script>
 </body>
