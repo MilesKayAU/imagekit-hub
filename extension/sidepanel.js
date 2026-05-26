@@ -2062,3 +2062,283 @@ renderUgcChain = function patchedRenderUgcChain() {
 // Initial render
 renderVideoSlots();
 refreshVideoGenerateAll();
+
+// ============================================================
+// Reference Video → Product Ad (8–15s)
+// ============================================================
+
+const RV_SYSTEM = `You are a senior creative director. The user pastes a reference video URL (YouTube / TikTok / Shorts). Your job is to extract its AD STRUCTURE and rewrite it as a brand-safe, 8–15 SECOND product ad they can generate with image-to-video AI.
+
+HARD RULES:
+- Final ad MUST be 8–15 seconds total. Never longer. If the reference is longer, keep only the strongest beats and discard the rest.
+- Output exactly 3 slot prompts that sum to 8–15 seconds. Each slot 3–7 seconds.
+- Beat map across the 3 slots, in order:
+    0–2s   hook
+    2–5s   product / service reveal
+    5–10s  main benefit or demo
+    10–15s CTA or final product shot
+  Compress beats to fit 3 slots when total is short.
+- Each slot's video_prompt MUST start with "Create an Xs image-to-video clip…" stating its own duration explicitly.
+- BRAND-SAFE strip-list (never reference in any field): named people, faces, brand logos, copyrighted music cues, verbatim script lines, distinctive set pieces, taglines.
+- KEEP: pacing, shot types, lighting quality, framing, emotional arc, CTA pattern, palette feel.
+- The product the user will generate is implied (their own product image). Write prompts that animate THAT product, not the reference subject.
+
+RETURN STRICT JSON, no prose, no markdown fences, matching exactly:
+{
+  "reference": { "platform": "youtube|tiktok|shorts|unknown", "title": "...", "duration_s_estimate": 15 },
+  "condensed": {
+    "target_duration_s": 12,
+    "beats": { "hook_0_2s": "...", "reveal_2_5s": "...", "benefit_5_10s": "...", "cta_10_15s": "..." }
+  },
+  "style":    { "pacing": "...", "lighting": "...", "palette": "..." },
+  "captions": { "style": "...", "example": "..." },
+  "audio_intent": "...",
+  "slot_prompts": [
+    { "segment": "0-Xs",  "duration_s": 5, "image_prompt": "...", "video_prompt": "Create a 5-second image-to-video clip…" },
+    { "segment": "X-Ys",  "duration_s": 5, "image_prompt": "...", "video_prompt": "Create a 5-second image-to-video clip…" },
+    { "segment": "Y-Zs",  "duration_s": 5, "image_prompt": "...", "video_prompt": "Create a 5-second image-to-video clip…" }
+  ],
+  "full_annotation_markdown": "# Reference analysis\\n..."
+}`;
+
+function rvParseUrl(raw) {
+  try {
+    const u = new URL(raw.trim());
+    const host = u.hostname.replace(/^www\./, "");
+    if (/youtube\.com$/.test(host) || host === "youtu.be" || /youtube-nocookie\.com$/.test(host)) {
+      const id = host === "youtu.be" ? u.pathname.slice(1) : (u.searchParams.get("v") || u.pathname.split("/").filter(Boolean).pop());
+      const platform = u.pathname.includes("/shorts/") ? "shorts" : "youtube";
+      return { platform, videoId: id, url: raw.trim() };
+    }
+    if (/tiktok\.com$/.test(host)) return { platform: "tiktok", videoId: u.pathname.split("/").filter(Boolean).pop(), url: raw.trim() };
+    return { platform: "unknown", videoId: null, url: raw.trim() };
+  } catch { return null; }
+}
+
+async function rvFetchMeta(parsed) {
+  // Public oEmbed endpoints — CORS-enabled, no auth required.
+  const endpoint = parsed.platform === "tiktok"
+    ? `https://www.tiktok.com/oembed?url=${encodeURIComponent(parsed.url)}`
+    : `https://www.youtube.com/oembed?url=${encodeURIComponent(parsed.url)}&format=json`;
+  try {
+    const res = await fetch(endpoint, { method: "GET" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return { title: data.title || null, author: data.author_name || null, thumbnail: data.thumbnail_url || null };
+  } catch { return null; }
+}
+
+function rvParseJsonLoose(text) {
+  if (!text) return null;
+  let t = String(text).trim().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
+  try { return JSON.parse(t); } catch {}
+  // Pull the first {...} block.
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try { return JSON.parse(t.slice(start, end + 1)); } catch {}
+  }
+  return null;
+}
+
+function rvSumDuration(result) {
+  if (!result?.slot_prompts) return 0;
+  return result.slot_prompts.reduce((acc, s) => acc + (Number(s.duration_s) || 0), 0);
+}
+
+function rvClampTo15(result) {
+  if (!result?.slot_prompts) return result;
+  // Trim trailing slots until total ≤ 15s and >= 8s, with each slot >= 3s.
+  let slots = result.slot_prompts.map((s) => ({ ...s, duration_s: Math.max(3, Math.min(8, Number(s.duration_s) || 5)) }));
+  let total = slots.reduce((a, s) => a + s.duration_s, 0);
+  while (total > 15 && slots.length > 1) {
+    const last = slots[slots.length - 1];
+    if (last.duration_s > 3) { last.duration_s -= 1; }
+    else slots.pop();
+    total = slots.reduce((a, s) => a + s.duration_s, 0);
+  }
+  while (total < 8) { slots[slots.length - 1].duration_s += 1; total += 1; if (total >= 15) break; }
+  result.slot_prompts = slots;
+  if (result.condensed) result.condensed.target_duration_s = total;
+  return result;
+}
+
+async function rvCallRewriter(providerId, directive) {
+  const data = await api("imagekit-enhance-prompt", {
+    provider_id: providerId,
+    system: RV_SYSTEM,
+    prompt: directive,
+    style: "cinematic",
+    mode: "video",
+  });
+  const text = (data?.enhanced_prompt || data?.text || data?.prompt || data?.output || "").trim();
+  if (!text) throw new Error(`Empty response. Raw: ${JSON.stringify(data).slice(0, 200)}`);
+  const parsed = rvParseJsonLoose(text);
+  if (!parsed) throw new Error(`Couldn't parse JSON from AI. First 200 chars: ${text.slice(0, 200)}`);
+  return parsed;
+}
+
+async function rvAnalyze(url, mode) {
+  const parsed = rvParseUrl(url);
+  if (!parsed) throw new Error("That URL doesn't look valid.");
+  rvStatus(`Fetching ${parsed.platform} metadata…`, "info");
+  const meta = await rvFetchMeta(parsed);
+
+  const providerId = $("provider").value || null;
+  if (!providerId || state.providers.length === 0) throw new Error("Pick an AI provider key first (top of panel).");
+
+  const audioCapable = video.slots.some((s) => VIDEO_MODELS[s.model]?.audio);
+  const modeNote = {
+    safe: "Style mode: SAFE ORIGINAL — copy the structure/pacing only. Be conservative with shot language.",
+    closer: "Style mode: CLOSER STYLE MATCH — match pacing AND shot language closely, still no copied assets.",
+    prompt_only: "Style mode: SAFE ORIGINAL — slots will be reviewed manually.",
+  }[mode] || "";
+
+  rvStatus("Analyzing & condensing to ≤15s…", "info");
+  const directive = [
+    RV_SYSTEM,
+    "",
+    `REFERENCE URL: ${parsed.url}`,
+    `Platform: ${parsed.platform}`,
+    meta?.title  ? `Title: ${meta.title}`           : "",
+    meta?.author ? `Uploader: ${meta.author}`       : "",
+    `Audio-capable target slot present: ${audioCapable ? "yes" : "no — write 'Audio: n/a' in audio_intent"}.`,
+    modeNote,
+    "",
+    "RETURN ONLY THE JSON OBJECT specified above. No prose. No code fences.",
+  ].filter(Boolean).join("\n");
+
+  let result = await rvCallRewriter(providerId, directive);
+
+  // Duration enforcement
+  let total = rvSumDuration(result);
+  let trimmed = false;
+  if (total < 8 || total > 15 || (result.slot_prompts || []).some((s) => Number(s.duration_s) < 3)) {
+    rvStatus(`Validating duration (got ${total}s) — rewriting to fit 8–15s…`, "info");
+    const retry = await rvCallRewriter(providerId, [
+      directive,
+      "",
+      `PREVIOUS ATTEMPT WAS ${total}s WHICH IS OUT OF RANGE. Rewrite to total 8–15 seconds with each slot 3–7s, and restate per-slot duration in each video_prompt.`,
+    ].join("\n"));
+    result = retry;
+    total = rvSumDuration(result);
+    if (total < 8 || total > 15) { result = rvClampTo15(result); trimmed = true; }
+  }
+
+  result.__meta = { parsed, oembed: meta, mode, trimmed };
+  return result;
+}
+
+function rvApplyStoryboard(result) {
+  if (!result?.slot_prompts?.length) return;
+  const masterSummary = [
+    result?.condensed?.beats?.hook_0_2s    && `Hook: ${result.condensed.beats.hook_0_2s}`,
+    result?.condensed?.beats?.reveal_2_5s  && `Reveal: ${result.condensed.beats.reveal_2_5s}`,
+    result?.condensed?.beats?.benefit_5_10s&& `Benefit: ${result.condensed.beats.benefit_5_10s}`,
+    result?.condensed?.beats?.cta_10_15s   && `CTA: ${result.condensed.beats.cta_10_15s}`,
+    result?.style?.pacing                  && `Pacing: ${result.style.pacing}`,
+    result?.style?.lighting                && `Lighting: ${result.style.lighting}`,
+    result?.audio_intent                   && `Audio: ${result.audio_intent}`,
+  ].filter(Boolean).join(". ");
+  if (masterSummary) $("vp-master").value = masterSummary;
+
+  // Fill up to 3 slots and clamp duration to each model's bounds.
+  result.slot_prompts.slice(0, video.slots.length).forEach((sp, i) => {
+    const slot = video.slots[i];
+    const m = VIDEO_MODELS[slot.model];
+    const want = Number(sp.duration_s) || slot.duration;
+    slot.duration = Math.max(m.durMin, Math.min(m.durMax, want));
+    slot.prompt = sp.video_prompt || sp.image_prompt || masterSummary;
+  });
+  renderVideoSlots();
+  refreshVideoGenerateAll();
+}
+
+function rvBuildMarkdown(result) {
+  if (result?.full_annotation_markdown) return result.full_annotation_markdown;
+  const r = result || {};
+  const lines = [
+    `# Reference analysis`,
+    ``,
+    `**Platform:** ${r.reference?.platform || r.__meta?.parsed?.platform || "unknown"}`,
+    r.__meta?.oembed?.title  ? `**Title:** ${r.__meta.oembed.title}`     : "",
+    r.__meta?.oembed?.author ? `**Uploader:** ${r.__meta.oembed.author}` : "",
+    ``,
+    `## Condensed beats (${r.condensed?.target_duration_s || rvSumDuration(r)}s total)`,
+    `- 0–2s · ${r.condensed?.beats?.hook_0_2s || ""}`,
+    `- 2–5s · ${r.condensed?.beats?.reveal_2_5s || ""}`,
+    `- 5–10s · ${r.condensed?.beats?.benefit_5_10s || ""}`,
+    `- 10–15s · ${r.condensed?.beats?.cta_10_15s || ""}`,
+    ``,
+    `## Style`,
+    `- Pacing: ${r.style?.pacing || ""}`,
+    `- Lighting: ${r.style?.lighting || ""}`,
+    `- Palette: ${r.style?.palette || ""}`,
+    ``,
+    `## Captions`,
+    `- Style: ${r.captions?.style || ""}`,
+    `- Example: ${r.captions?.example || ""}`,
+    ``,
+    `## Audio intent`,
+    r.audio_intent || "",
+    ``,
+    `## Slot prompts`,
+    ...(r.slot_prompts || []).map((s, i) =>
+      `### Slot ${i + 1} · ${s.segment} (${s.duration_s}s)\n**Image:** ${s.image_prompt}\n\n**Video:** ${s.video_prompt}\n`
+    ),
+  ].filter((x) => x !== "");
+  return lines.join("\n");
+}
+
+function rvDownload(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+function rvStatus(msg, kind = "info") { videoStatus(msg, kind); }
+
+let rvLastResult = null;
+
+$("rv-analyze").addEventListener("click", async () => {
+  const url = $("rv-url").value.trim();
+  if (!url) { rvStatus("Paste a YouTube / TikTok / Shorts URL first.", "error"); return; }
+  const mode = $("rv-mode").value;
+  const btn = $("rv-analyze");
+  btn.disabled = true;
+  try {
+    const result = await rvAnalyze(url, mode);
+    rvLastResult = result;
+    const md = rvBuildMarkdown(result);
+    $("rv-annotation").textContent = md;
+    $("rv-annotation-wrap").style.display = "block";
+    $("rv-annotation-wrap").open = true;
+    if (mode === "prompt_only") {
+      rvStatus(`Analysis ready (${rvSumDuration(result)}s). Slots untouched — review the annotation and copy prompts manually.`, "success");
+    } else {
+      rvApplyStoryboard(result);
+      const total = rvSumDuration(result);
+      if (result.__meta?.trimmed) rvStatus(`Trimmed to ${total}s — review before generating.`, "warn");
+      else rvStatus(`Storyboard applied (${total}s across 3 slots). Review and Generate.`, "success");
+    }
+  } catch (e) {
+    console.error("[reference video]", e);
+    rvStatus(`Couldn't analyze: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("rv-download-json").addEventListener("click", () => {
+  if (!rvLastResult) return;
+  const slug = (rvLastResult.__meta?.parsed?.videoId || "reference").replace(/[^a-z0-9]+/gi, "-").slice(0, 40);
+  rvDownload(new Blob([JSON.stringify(rvLastResult, null, 2)], { type: "application/json" }), `${slug}-annotation.json`);
+});
+
+$("rv-download-md").addEventListener("click", () => {
+  if (!rvLastResult) return;
+  const slug = (rvLastResult.__meta?.parsed?.videoId || "reference").replace(/[^a-z0-9]+/gi, "-").slice(0, 40);
+  rvDownload(new Blob([rvBuildMarkdown(rvLastResult)], { type: "text/markdown" }), `${slug}-annotation.md`);
+});
