@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.8
+- UGC tab: approving a shot now unlocks the next one but no longer auto-generates it — edit the prompt first, then click **Generate shot**.
+
 ## 1.0.7 — UGC tab
 - New **UGC** tab: pick a subject category (Person / Product / Food / Place), drop a reference image, and hit **Generate prompt pack** — your BYOK text model rewrites a 6-shot prompt chain that keeps subject, outfit, and lighting consistent while varying pose/scene/angle.
 - **Step-by-step approval**: generate shot 1, refine if needed, then **Approve & continue** auto-fires shot 2 using shot 1's image as a reference for identity lock. Repeats through shot 6. Each shot has its own Refine box, Save to Library, and Download.
