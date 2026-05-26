@@ -852,9 +852,19 @@ const ugc = {
   subjectType: "person",
   sourceUrl: null,
   sourceDataUrl: null,
-  shots: [],         // [{ prompt, status: 'idle'|'running'|'done'|'approved', result, lastModel, lastProviderId }]
+  shots: [],         // [{ prompt, status, result, lastModel, lastProviderId, selected, saved }]
   busy: false,
+  sessionId: null,   // groups all shots from one pack into a library album
+  albumName: null,
 };
+
+function newUgcSession() {
+  const id = (crypto.randomUUID?.() || `ugc-${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
+  ugc.sessionId = id;
+  const stamp = new Date().toISOString().slice(0,16).replace("T"," ");
+  ugc.albumName = `UGC · ${ugc.subjectType} · ${stamp}`;
+  return id;
+}
 
 function ugcStatus(msg, kind = "info") {
   const el = $("ugc-status");
