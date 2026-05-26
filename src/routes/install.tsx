@@ -1,0 +1,117 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+const TITLE = "Install ReadyCode ImageKit";
+const DESCRIPTION =
+  "Install the ReadyCode ImageKit Chrome extension from the Web Store, or load the open-source build from GitHub in under a minute.";
+const URL = "https://imagekit.readycode.ai/install";
+
+export const Route = createFileRoute("/install")({
+  component: InstallPage,
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:url", content: URL },
+    ],
+    links: [{ rel: "canonical", href: URL }],
+  }),
+});
+
+function InstallPage() {
+  return (
+    <div className="mx-auto max-w-3xl px-6 py-20">
+      <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+        Install ImageKit
+      </h1>
+      <p className="mt-4 text-lg text-muted-foreground">
+        Two ways to install. The Web Store is the easiest. The manual build is for developers and reviewers.
+      </p>
+
+      <section className="mt-12 rounded-xl border border-border bg-card p-8">
+        <div className="flex items-center gap-3">
+          <span className="rounded-md bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">Recommended</span>
+          <h2 className="text-2xl font-semibold text-foreground">From the Chrome Web Store</h2>
+        </div>
+        <ol className="mt-6 list-decimal space-y-3 pl-6 text-sm text-muted-foreground">
+          <li>Open the ReadyCode ImageKit listing on the Chrome Web Store.</li>
+          <li>Click <span className="text-foreground">Add to Chrome</span>, then <span className="text-foreground">Add extension</span>.</li>
+          <li>Pin the extension from the puzzle-piece menu so the icon is always visible.</li>
+          <li>Click the icon to open the side panel.</li>
+        </ol>
+        <p className="mt-6 text-sm text-muted-foreground">
+          The Web Store listing link will appear here once the v1.0 review is approved.
+        </p>
+      </section>
+
+      <section className="mt-8 rounded-xl border border-border bg-card p-8">
+        <h2 className="text-2xl font-semibold text-foreground">From GitHub (manual)</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The whole extension is open source. Anyone can audit it, build it, or run it unpacked.
+        </p>
+        <ol className="mt-6 list-decimal space-y-3 pl-6 text-sm text-muted-foreground">
+          <li>
+            Download the latest release zip:{" "}
+            <a
+              href="https://github.com/MilesKayAU/imagekit-hub/releases/latest"
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline-offset-4 hover:underline"
+            >
+              github.com/MilesKayAU/imagekit-hub/releases/latest
+            </a>
+            , or clone the repo and use the <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">extension/</code> folder.
+          </li>
+          <li>Unzip it somewhere stable on your machine.</li>
+          <li>
+            Open <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">chrome://extensions</code> and toggle{" "}
+            <span className="text-foreground">Developer mode</span> on (top right).
+          </li>
+          <li>
+            Click <span className="text-foreground">Load unpacked</span> and select the unzipped{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">extension/</code> folder.
+          </li>
+          <li>Pin the extension and click the icon to open the side panel.</li>
+        </ol>
+      </section>
+
+      <section className="mt-8 rounded-xl border border-border bg-card p-8">
+        <h2 className="text-2xl font-semibold text-foreground">Then: link ReadyCode</h2>
+        <ol className="mt-6 list-decimal space-y-3 pl-6 text-sm text-muted-foreground">
+          <li>
+            Create a free account at{" "}
+            <a href="https://readycode.ai/signup" target="_blank" rel="noreferrer" className="text-foreground underline-offset-4 hover:underline">
+              readycode.ai/signup
+            </a>
+            .
+          </li>
+          <li>
+            Go to{" "}
+            <a href="https://readycode.ai/imagekit/connect" target="_blank" rel="noreferrer" className="text-foreground underline-offset-4 hover:underline">
+              readycode.ai/imagekit/connect
+            </a>{" "}
+            and copy your link token.
+          </li>
+          <li>Paste it into the extension's side panel when prompted.</li>
+          <li>Add your OpenRouter (or other provider) API key in ReadyCode — your provider bills you directly.</li>
+        </ol>
+      </section>
+
+      <div className="mt-12 flex flex-wrap gap-3">
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          ← Back home
+        </Link>
+        <Link
+          to="/privacy"
+          className="inline-flex items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          Read the privacy policy
+        </Link>
+      </div>
+    </div>
+  );
+}
