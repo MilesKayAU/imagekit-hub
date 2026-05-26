@@ -1,5 +1,11 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.7 — UGC tab
+- New **UGC** tab: pick a subject category (Person / Product / Food / Place), drop a reference image, and hit **Generate prompt pack** — your BYOK text model rewrites a 6-shot prompt chain that keeps subject, outfit, and lighting consistent while varying pose/scene/angle.
+- **Step-by-step approval**: generate shot 1, refine if needed, then **Approve & continue** auto-fires shot 2 using shot 1's image as a reference for identity lock. Repeats through shot 6. Each shot has its own Refine box, Save to Library, and Download.
+- **Per-tab model picker** with one-tap presets for **Grok Imagine**, **Gemini 3 Pro Image**, and **Nano Banana 2**, plus a free-text OpenRouter model id field. Selection syncs with the Respin tab.
+- Requires the ReadyCode `imagekit-enhance-prompt` edge function to accept a custom `system` prompt (already in place since 1.0.4).
+
 ## 1.0.6 — Custom OpenRouter model id
 - New **Or use any OpenRouter model id** field under the recommended models picker. Paste any image-capable slug from openrouter.ai/models (e.g. `x-ai/grok-imagine`, `google/gemini-2.5-flash-image`) and hit **Use** — the next Generate/Refine routes to that exact model. Works even before the daily catalog has indexed a brand-new model.
 
