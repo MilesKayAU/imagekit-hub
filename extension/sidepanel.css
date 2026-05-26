@@ -62,3 +62,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 h2 { font-size: 15px; margin: 0 0 10px; }
 ol { padding-left: 20px; font-size: 13px; line-height: 1.5; }
 ol li { margin-bottom: 6px; }
+
+.welcome { padding: 4px 2px; }
+.welcome-steps { list-style: decimal; padding-left: 22px; margin: 0; }
+.welcome-steps > li { margin-bottom: 14px; }
+.welcome-steps strong { display: block; font-size: 13px; color: #1a1a1a; margin-bottom: 2px; }
+.welcome-steps p { margin: 0 0 6px; }
+.welcome-cta, .welcome-steps .primary { font-size: 12px; padding: 6px 10px; }
+.tab[data-tab="welcome"].hidden { display: none; }
