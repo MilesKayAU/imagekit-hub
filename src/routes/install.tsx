@@ -109,23 +109,24 @@ function InstallPage() {
 
       <section className="mt-8 rounded-xl border border-border bg-card p-8">
         <h2 className="text-2xl font-semibold text-foreground">Then: link ReadyCode</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The connect page now handles signup, BYOK key entry, and your token in one place — no separate signup step.
+        </p>
         <ol className="mt-6 list-decimal space-y-3 pl-6 text-sm text-muted-foreground">
           <li>
-            Create a free account at{" "}
-            <a href="https://readycode.ai/signup" target="_blank" rel="noreferrer" className="text-foreground underline-offset-4 hover:underline">
-              readycode.ai/signup
-            </a>
-            .
-          </li>
-          <li>
-            Go to{" "}
+            Open{" "}
             <a href="https://readycode.ai/imagekit/connect" target="_blank" rel="noreferrer" className="text-foreground underline-offset-4 hover:underline">
               readycode.ai/imagekit/connect
             </a>{" "}
-            and copy your link token.
+            and sign up (or sign in) inline.
           </li>
-          <li>Paste it into the extension's side panel when prompted.</li>
-          <li>Add your OpenRouter (or other provider) API key in ReadyCode — your provider bills you directly.</li>
+          <li>
+            Add your AI provider key in the same flow — OpenRouter recommended (one key covers most image models). Your provider bills you directly; ReadyCode never touches an image model.
+          </li>
+          <li>Copy the connect token (<code className="rounded bg-muted px-1.5 py-0.5 text-foreground">RC1.…</code>) shown at the bottom of the page.</li>
+          <li>
+            Open the extension's side panel, go to <span className="text-foreground">Get started</span> → <span className="text-foreground">Paste token</span> (or click <span className="text-foreground">Link</span> in the header), and paste.
+          </li>
         </ol>
       </section>
 
