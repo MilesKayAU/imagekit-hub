@@ -4,23 +4,52 @@ Free, open-source, BYOK (bring-your-own-key) AI image studio that lives in the C
 
 **License:** MIT — fork it, audit it, ship your own build.
 
+---
+
+## Download
+
+The extension source lives in the [`extension/`](./extension) folder. Two ways to get it:
+
+### Option A — Packaged zip (recommended)
+
+Grab the latest release zip — it contains only the extension files, nothing else:
+
+```
+https://github.com/<org>/imagekit-hub/releases/latest/download/readycode-imagekit.zip
+```
+
+Unzip it anywhere.
+
+### Option B — Clone the repo
+
+```bash
+git clone https://github.com/<org>/imagekit-hub.git
+cd imagekit-hub/extension
+```
+
+The `extension/` folder is the entire extension — every other file in this repo is build tooling and can be ignored.
+
+---
+
 ## Install (unpacked, for development or audit)
 
-1. Download or clone this repo.
+1. Get the files (see Download above).
 2. Open `chrome://extensions` in Chrome / Edge / Brave / Arc.
-3. Enable **Developer mode** (top right).
-4. Click **Load unpacked** and select this folder.
-5. Pin the ImageKit icon and open the side panel.
+3. Enable **Developer mode** (toggle, top right).
+4. Click **Load unpacked** and select the `extension/` folder (or the unzipped folder).
+5. Pin the ImageKit icon in the toolbar and open the side panel.
 
 Production installs ship via the Chrome Web Store — see <https://readycode.ai/downloads>.
+
+---
 
 ## How it works
 
 - **You bring the AI key.** ImageKit calls image models via the AI provider key you store in your ReadyCode account (OpenRouter, OpenAI, or any OpenAI-compatible endpoint). ReadyCode does not mark up inference — your provider bills you directly.
 - **You need a free ReadyCode account** so the extension can route the request to your key and save results to your library. Sign up at <https://readycode.ai/signup>.
-- **Privacy:** the extension only acts when you click. No background page reads, no analytics, no tracking. Full policy in [`PRIVACY.md`](./PRIVACY.md).
+- **Privacy:** the extension only acts when you click. No background page reads, no analytics, no tracking. Full policy in [`extension/PRIVACY.md`](./extension/PRIVACY.md).
 
-## What's in this repo
+## What's in `extension/`
 
 | File | Purpose |
 |---|---|
@@ -30,7 +59,16 @@ Production installs ship via the Chrome Web Store — see <https://readycode.ai/
 | `icon.png` | Toolbar icon |
 | `PRIVACY.md` | Privacy policy |
 | `CHANGELOG.md` | Release notes |
-| `LICENSE` | MIT |
+
+## Building the release zip
+
+Maintainers only:
+
+```bash
+bash scripts/package.sh
+```
+
+Produces `readycode-imagekit.zip` at the repo root, ready to attach to a GitHub Release.
 
 ## What's NOT in this repo (and won't be)
 
