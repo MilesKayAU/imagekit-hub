@@ -52,14 +52,14 @@ function InstallPage() {
         </p>
         <ol className="mt-6 list-decimal space-y-3 pl-6 text-sm text-muted-foreground">
           <li>
-            Download the latest release zip:{" "}
+            Download the latest build zip:{" "}
             <a
-              href="https://github.com/MilesKayAU/imagekit-hub/releases/latest"
+              href="https://github.com/MilesKayAU/imagekit-hub/releases/download/latest-build/readycode-imagekit.zip"
               target="_blank"
               rel="noreferrer"
               className="text-foreground underline-offset-4 hover:underline"
             >
-              github.com/MilesKayAU/imagekit-hub/releases/latest
+              readycode-imagekit.zip (latest build)
             </a>
             , or clone the repo and use the <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">extension/</code> folder.
           </li>
