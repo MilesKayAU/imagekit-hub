@@ -686,6 +686,7 @@ async function openLibPicker(target) {
       img.addEventListener("click", () => {
         if (!url) return;
         if (libPickerTarget === "source") setSource({ url, dataUrl: url });
+        else if (libPickerTarget === "ugc-source") ugcSetSource({ url, dataUrl: url });
         else addExtra(url, url);
         libPicker.close();
       });
