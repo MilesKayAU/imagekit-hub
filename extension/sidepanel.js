@@ -1416,6 +1416,8 @@ const video = {
       progressMsg: "",
       jobId: null,
       result: null,   // { video_url, mime_type, provider_name, model_name, duration_s }
+      playbackUrl: null,
+      playbackLoading: false,
       saved: false,
       pollAbort: false,
     };
@@ -1429,6 +1431,50 @@ function newVideoSession() {
   video.sessionId = id;
   video.albumName = `I2V · ${new Date().toISOString().slice(0,16).replace("T"," ")}`;
   return id;
+}
+
+function revokeSlotPlaybackUrl(slot) {
+  if (slot?.playbackUrl && String(slot.playbackUrl).startsWith("blob:")) {
+    try { URL.revokeObjectURL(slot.playbackUrl); } catch {}
+  }
+  slot.playbackUrl = null;
+  slot.playbackLoading = false;
+}
+
+function shouldWarmBlobPlayback(url) {
+  const v = String(url || "").toLowerCase();
+  return (
+    /fal\.media|replicate\.delivery|cloudfront\.net|amazonaws\.com|storage\.googleapis\.com|firebasestorage\.googleapis\.com/.test(v) ||
+    /[?&](token|signature|sig|expires|x-amz-|googleaccessid|download=1|response-content-type=video)/.test(v)
+  );
+}
+
+async function hydrateVideoPlaybackUrl(i, sourceUrl) {
+  const slot = video.slots[i];
+  if (!slot || slot.playbackLoading || !sourceUrl) return false;
+  if (slot.playbackUrl && slot.result?.video_url === sourceUrl) return true;
+  slot.playbackLoading = true;
+  try {
+    const res = await fetch(sourceUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    if (contentType && !contentType.startsWith("video/")) {
+      throw new Error(`Expected video content, got ${contentType}`);
+    }
+    const blob = await res.blob();
+    if (blob.type && !String(blob.type).toLowerCase().startsWith("video/")) {
+      throw new Error(`Expected video blob, got ${blob.type}`);
+    }
+    revokeSlotPlaybackUrl(slot);
+    slot.playbackUrl = URL.createObjectURL(blob);
+    renderVideoSlots();
+    return true;
+  } catch (e) {
+    console.warn(`[video-slot ${i + 1}] blob playback fallback failed`, { url: sourceUrl, error: e?.message || String(e) });
+    return false;
+  } finally {
+    slot.playbackLoading = false;
+  }
 }
 
 function videoStatus(msg, kind = "info") {
