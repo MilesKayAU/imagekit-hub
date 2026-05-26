@@ -1035,6 +1035,9 @@ $("ugc-generate-pack").addEventListener("click", async () => {
 function renderUgcChain() {
   const root = $("ugc-chain");
   root.innerHTML = "";
+  const anyReady = ugc.shots.some((s) => s.result);
+  $("ugc-toolbar-top").classList.toggle("hidden", !anyReady);
+  $("ugc-toolbar-bottom").classList.toggle("hidden", !anyReady);
   if (!ugc.shots.length) return;
   // Determine which shot is "live" — first non-approved
   const liveIdx = ugc.shots.findIndex((s) => s.status !== "approved");
@@ -1043,6 +1046,7 @@ function renderUgcChain() {
     card.className = "ugc-shot-card";
     if (shot.status === "done") card.classList.add("done");
     if (shot.status === "approved") card.classList.add("approved");
+    if (shot.saved) card.classList.add("saved");
     // Lock future shots if a previous one isn't approved (except shot 0)
     if (i > 0 && ugc.shots[i - 1].status !== "approved") card.classList.add("locked");
 
@@ -1055,6 +1059,17 @@ function renderUgcChain() {
     st.className = "shot-state";
     st.textContent = ({ idle: "Pending", running: "Generating…", done: "Ready — review or approve", approved: "Approved ✓" })[shot.status];
     header.appendChild(num);
+    if (shot.result) {
+      const sel = document.createElement("label");
+      sel.className = "shot-select";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!shot.selected;
+      cb.addEventListener("change", () => { shot.selected = cb.checked; });
+      sel.appendChild(cb);
+      sel.appendChild(document.createTextNode("Select"));
+      header.appendChild(sel);
+    }
     header.appendChild(st);
     card.appendChild(header);
 
@@ -1076,18 +1091,20 @@ function renderUgcChain() {
     genBtn.addEventListener("click", () => generateUgcShot(i));
     actions.appendChild(genBtn);
 
-    if (shot.status === "done") {
+    if (shot.result) {
+      if (shot.status === "done") {
       const approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "secondary";
       approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & unlock next";
       approveBtn.addEventListener("click", () => approveUgcShot(i));
       actions.appendChild(approveBtn);
+      }
 
       const saveBtn = document.createElement("button");
       saveBtn.type = "button";
       saveBtn.className = "secondary";
-      saveBtn.textContent = "Save";
+      saveBtn.textContent = shot.saved ? "Save again" : "Save";
       saveBtn.addEventListener("click", () => saveUgcShot(i));
       actions.appendChild(saveBtn);
 
