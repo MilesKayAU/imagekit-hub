@@ -1,4 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import manifest from "../../extension/manifest.json";
+
+const EXTENSION_VERSION = manifest.version;
 
 const TITLE = "Install ReadyCode ImageKit";
 const DESCRIPTION =
@@ -36,6 +39,9 @@ function InstallPage() {
       <p className="mt-4 text-lg text-muted-foreground">
         Two ways to install. The Web Store is the easiest. The manual build is for developers and reviewers.
       </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Current version: <span className="font-mono text-foreground">v{EXTENSION_VERSION}</span>
+      </p>
 
       <section className="mt-12 rounded-xl border border-border bg-card p-8">
         <div className="flex items-center gap-3">
@@ -64,7 +70,7 @@ function InstallPage() {
             onClick={handleGitHubDownload}
             className="inline-flex items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
-            Download latest build zip
+            Download latest build zip (v{EXTENSION_VERSION})
           </button>
           <a
             href={GITHUB_LATEST_BUILD_RELEASE}
