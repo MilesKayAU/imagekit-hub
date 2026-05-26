@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.25 — Fix sidepanel video playback for signed/cross-origin assets
+- The inline Image → Video player no longer forces `crossorigin="anonymous"`, which was causing otherwise valid remote MP4s to fail on hosts that do not return CORS headers for media.
+- Added a blob playback fallback: when a slot finishes with a signed or CDN video URL, the extension now fetches the file first and plays a local blob URL if direct playback fails (or if the URL looks like a signed asset URL).
+- Re-generating a slot now clears the previous playback URL/result first so stale "Ready" previews do not stick around while a new job is running.
+
 ## 1.0.24 — True video understanding for the Reference Video flow (server-backed)
 - The Reference Video analyzer now calls a new ReadyCode edge function `imagekit-analyze-video` for YouTube + Shorts URLs. The server forwards the URL to Google Gemini with native video ingestion, so the storyboard reflects actual pacing, shot language, captions and audio cues instead of just the title + uploader.
 - Graceful fallback: if the new endpoint isn't deployed yet, returns `{ fallback: "text_only" }`, or fails for any reason, the extension silently drops back to the existing metadata-only rewriter. TikTok and unknown platforms always use the rewriter path (Gemini doesn't ingest TikTok URLs).

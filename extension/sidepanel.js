@@ -1416,6 +1416,8 @@ const video = {
       progressMsg: "",
       jobId: null,
       result: null,   // { video_url, mime_type, provider_name, model_name, duration_s }
+      playbackUrl: null,
+      playbackLoading: false,
       saved: false,
       pollAbort: false,
     };
@@ -1429,6 +1431,50 @@ function newVideoSession() {
   video.sessionId = id;
   video.albumName = `I2V · ${new Date().toISOString().slice(0,16).replace("T"," ")}`;
   return id;
+}
+
+function revokeSlotPlaybackUrl(slot) {
+  if (slot?.playbackUrl && String(slot.playbackUrl).startsWith("blob:")) {
+    try { URL.revokeObjectURL(slot.playbackUrl); } catch {}
+  }
+  slot.playbackUrl = null;
+  slot.playbackLoading = false;
+}
+
+function shouldWarmBlobPlayback(url) {
+  const v = String(url || "").toLowerCase();
+  return (
+    /fal\.media|replicate\.delivery|cloudfront\.net|amazonaws\.com|storage\.googleapis\.com|firebasestorage\.googleapis\.com/.test(v) ||
+    /[?&](token|signature|sig|expires|x-amz-|googleaccessid|download=1|response-content-type=video)/.test(v)
+  );
+}
+
+async function hydrateVideoPlaybackUrl(i, sourceUrl) {
+  const slot = video.slots[i];
+  if (!slot || slot.playbackLoading || !sourceUrl) return false;
+  if (slot.playbackUrl && slot.result?.video_url === sourceUrl) return true;
+  slot.playbackLoading = true;
+  try {
+    const res = await fetch(sourceUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    if (contentType && !contentType.startsWith("video/")) {
+      throw new Error(`Expected video content, got ${contentType}`);
+    }
+    const blob = await res.blob();
+    if (blob.type && !String(blob.type).toLowerCase().startsWith("video/")) {
+      throw new Error(`Expected video blob, got ${blob.type}`);
+    }
+    revokeSlotPlaybackUrl(slot);
+    slot.playbackUrl = URL.createObjectURL(blob);
+    renderVideoSlots();
+    return true;
+  } catch (e) {
+    console.warn(`[video-slot ${i + 1}] blob playback fallback failed`, { url: sourceUrl, error: e?.message || String(e) });
+    return false;
+  } finally {
+    slot.playbackLoading = false;
+  }
 }
 
 function videoStatus(msg, kind = "info") {
@@ -1657,19 +1703,32 @@ function renderVideoSlots() {
 
     if (slot.result?.video_url) {
       const v = document.createElement("video");
-      v.src = slot.result.video_url;
+      v.src = slot.playbackUrl || slot.result.video_url;
       v.controls = true;
       v.loop = true;
       v.preload = "metadata";
       v.playsInline = true;
-      v.crossOrigin = "anonymous";
       v.addEventListener("error", () => {
         const mediaErr = v.error;
         const reason = mediaErr?.message || ({ 1: "loading aborted", 2: "network error", 3: "decode error", 4: "unsupported format" }[mediaErr?.code] || "playback failed");
-        console.warn(`[video-slot ${i + 1}] playback failed`, { url: slot.result.video_url, code: mediaErr?.code, reason });
+        const originalUrl = slot.result?.video_url;
+        console.warn(`[video-slot ${i + 1}] playback failed`, { url: v.currentSrc || slot.playbackUrl || originalUrl, code: mediaErr?.code, reason });
+        if (!slot.playbackUrl && originalUrl) {
+          hydrateVideoPlaybackUrl(i, originalUrl)
+            .then((ok) => {
+              if (!ok) videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
+            })
+            .catch(() => {
+              videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
+            });
+          return;
+        }
         videoStatus(`Slot ${i + 1} loaded a non-playable video URL (${reason}).`, "error");
       });
       card.appendChild(v);
+      if (!slot.playbackUrl && !slot.playbackLoading && shouldWarmBlobPlayback(slot.result.video_url)) {
+        hydrateVideoPlaybackUrl(i, slot.result.video_url).catch(() => {});
+      }
       const meta = document.createElement("div");
       meta.className = "shot-meta muted";
       meta.style.fontSize = "11px"; meta.style.marginTop = "4px";
@@ -1689,6 +1748,9 @@ async function generateVideoSlot(i) {
   const prompt = (slot.prompt || $("vp-master").value || "").trim();
   if (!prompt) { videoStatus(`Slot ${i + 1} needs a prompt.`, "error"); return; }
   const providerId = $("provider").value || null;
+  revokeSlotPlaybackUrl(slot);
+  slot.result = null;
+  slot.saved = false;
   slot.requestProviderId = providerId;
   slot.status = "queued";
   slot.progressMsg = "Submitting job…";
