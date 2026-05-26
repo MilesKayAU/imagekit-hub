@@ -1797,12 +1797,20 @@ async function generateVideoSlot(i) {
   slot.progressMsg = "Submitting job…";
   slot.pollAbort = false;
   renderVideoSlots();
+  const effectivePrompt = buildEffectivePrompt(slot, prompt);
+  const srcPreview = String(video.sourceUrl || "").slice(0, 80);
+  console.log(`[imagekit-video-generate] slot ${i + 1} submit`, {
+    model: slot.model,
+    faithful: !!slot.faithful,
+    image_url: srcPreview + (video.sourceUrl?.length > 80 ? "…" : ""),
+    prompt_chars: effectivePrompt.length,
+  });
   try {
     const data = await api("imagekit-video-generate", {
       provider_id: providerId,
       model: slot.model,
       model_slug: slot.model,
-      prompt,
+      prompt: effectivePrompt,
       image_url: video.sourceUrl,
       duration_seconds: slot.duration,
       resolution: slot.resolution,
