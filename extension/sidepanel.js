@@ -897,7 +897,8 @@ function refreshUgcPackButton() {
 function loadUgcTemplate(subject) {
   const pack = UGC_TEMPLATES[subject] || UGC_TEMPLATES.person;
   $("ugc-master-prompt").value = pack[0];
-  ugc.shots = pack.map((p, i) => ({ prompt: p, status: "idle", result: null }));
+  ugc.shots = pack.map((p, i) => ({ prompt: p, status: "idle", result: null, selected: false, saved: false }));
+  newUgcSession();
   renderUgcChain();
   refreshUgcPackButton();
 }
