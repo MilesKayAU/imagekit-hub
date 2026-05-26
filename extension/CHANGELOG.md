@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.13 — UGC bulk actions & library album
+- **Save / Download stay available after approval.** Previously the buttons disappeared once you clicked Approve. Now every ready shot keeps its Save, Download, and Re-generate buttons (Save shows "Save again" after a successful save).
+- **Toolbars at top + bottom of the chain** with: *Select all*, *Download selected*, *Save selected to library*, *Download all ready*, *Save all ready*. Each shot card has a Select checkbox in its header.
+- **Library grouping.** Each prompt pack now gets a session id and album name (e.g. `UGC · person · 2026-05-26 14:32`). The `imagekit-save` call sends `album`, `session_id`, and the same fields inside `source_metadata` so the ReadyCode library can render saved UGC shots together under one folder. *Requires the ReadyCode `imagekit-save` edge function to persist `album` / `session_id` on the library row (or read them from `source_metadata`) and group by album in the library UI.*
+
 ## 1.0.12
 - **Fixed Grok Imagine slug.** The correct OpenRouter id is `x-ai/grok-imagine-image-quality` (xAI's fast high-fidelity image model, 1K/2K, supports reference images). The old `x-ai/grok-imagine` slug doesn't exist on OpenRouter and silently fell back to a Gemini default. Grok Imagine is back as a preset.
 

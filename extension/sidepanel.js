@@ -852,9 +852,19 @@ const ugc = {
   subjectType: "person",
   sourceUrl: null,
   sourceDataUrl: null,
-  shots: [],         // [{ prompt, status: 'idle'|'running'|'done'|'approved', result, lastModel, lastProviderId }]
+  shots: [],         // [{ prompt, status, result, lastModel, lastProviderId, selected, saved }]
   busy: false,
+  sessionId: null,   // groups all shots from one pack into a library album
+  albumName: null,
 };
+
+function newUgcSession() {
+  const id = (crypto.randomUUID?.() || `ugc-${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
+  ugc.sessionId = id;
+  const stamp = new Date().toISOString().slice(0,16).replace("T"," ");
+  ugc.albumName = `UGC · ${ugc.subjectType} · ${stamp}`;
+  return id;
+}
 
 function ugcStatus(msg, kind = "info") {
   const el = $("ugc-status");
@@ -887,7 +897,8 @@ function refreshUgcPackButton() {
 function loadUgcTemplate(subject) {
   const pack = UGC_TEMPLATES[subject] || UGC_TEMPLATES.person;
   $("ugc-master-prompt").value = pack[0];
-  ugc.shots = pack.map((p, i) => ({ prompt: p, status: "idle", result: null }));
+  ugc.shots = pack.map((p, i) => ({ prompt: p, status: "idle", result: null, selected: false, saved: false }));
+  newUgcSession();
   renderUgcChain();
   refreshUgcPackButton();
 }
@@ -1002,16 +1013,18 @@ $("ugc-generate-pack").addEventListener("click", async () => {
       arr = raw.split(/\n+/).map((l) => l.replace(/^\s*[\d.\-)]+\s*/, "").trim()).filter(Boolean).slice(0, 5);
     }
     if (arr.length < 5) throw new Error("AI didn't return 5 follow-up prompts.");
+    newUgcSession();
     ugc.shots = [
-      { prompt: master, status: "idle", result: null },
-      ...arr.slice(0, 5).map((p) => ({ prompt: String(p), status: "idle", result: null })),
+      { prompt: master, status: "idle", result: null, selected: false, saved: false },
+      ...arr.slice(0, 5).map((p) => ({ prompt: String(p), status: "idle", result: null, selected: false, saved: false })),
     ];
     renderUgcChain();
     ugcStatus("Prompt pack ready. Generate shot 1 to start the chain.", "success");
   } catch (e) {
     ugcStatus(`Couldn't generate pack: ${e.message}. Using built-in template instead.`, "error");
     const pack = UGC_TEMPLATES[ugc.subjectType];
-    ugc.shots = pack.map((p, i) => ({ prompt: i === 0 ? master : p, status: "idle", result: null }));
+    newUgcSession();
+    ugc.shots = pack.map((p, i) => ({ prompt: i === 0 ? master : p, status: "idle", result: null, selected: false, saved: false }));
     renderUgcChain();
   } finally {
     ugc.busy = false;
@@ -1022,6 +1035,9 @@ $("ugc-generate-pack").addEventListener("click", async () => {
 function renderUgcChain() {
   const root = $("ugc-chain");
   root.innerHTML = "";
+  const anyReady = ugc.shots.some((s) => s.result);
+  $("ugc-toolbar-top").classList.toggle("hidden", !anyReady);
+  $("ugc-toolbar-bottom").classList.toggle("hidden", !anyReady);
   if (!ugc.shots.length) return;
   // Determine which shot is "live" — first non-approved
   const liveIdx = ugc.shots.findIndex((s) => s.status !== "approved");
@@ -1030,6 +1046,7 @@ function renderUgcChain() {
     card.className = "ugc-shot-card";
     if (shot.status === "done") card.classList.add("done");
     if (shot.status === "approved") card.classList.add("approved");
+    if (shot.saved) card.classList.add("saved");
     // Lock future shots if a previous one isn't approved (except shot 0)
     if (i > 0 && ugc.shots[i - 1].status !== "approved") card.classList.add("locked");
 
@@ -1042,6 +1059,17 @@ function renderUgcChain() {
     st.className = "shot-state";
     st.textContent = ({ idle: "Pending", running: "Generating…", done: "Ready — review or approve", approved: "Approved ✓" })[shot.status];
     header.appendChild(num);
+    if (shot.result) {
+      const sel = document.createElement("label");
+      sel.className = "shot-select";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!shot.selected;
+      cb.addEventListener("change", () => { shot.selected = cb.checked; });
+      sel.appendChild(cb);
+      sel.appendChild(document.createTextNode("Select"));
+      header.appendChild(sel);
+    }
     header.appendChild(st);
     card.appendChild(header);
 
@@ -1063,18 +1091,20 @@ function renderUgcChain() {
     genBtn.addEventListener("click", () => generateUgcShot(i));
     actions.appendChild(genBtn);
 
-    if (shot.status === "done") {
+    if (shot.result) {
+      if (shot.status === "done") {
       const approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "secondary";
       approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & unlock next";
       approveBtn.addEventListener("click", () => approveUgcShot(i));
       actions.appendChild(approveBtn);
+      }
 
       const saveBtn = document.createElement("button");
       saveBtn.type = "button";
       saveBtn.className = "secondary";
-      saveBtn.textContent = "Save";
+      saveBtn.textContent = shot.saved ? "Save again" : "Save";
       saveBtn.addEventListener("click", () => saveUgcShot(i));
       actions.appendChild(saveBtn);
 
@@ -1213,15 +1243,22 @@ async function saveUgcShot(i) {
       image_base64: shot.result.image_base64,
       mime_type: shot.result.mime_type,
       kind: "ugc",
+      album: ugc.albumName,
+      session_id: ugc.sessionId,
       source_metadata: {
         prompt: shot.prompt,
         subject_type: ugc.subjectType,
         shot_index: i + 1,
+        shot_count: ugc.shots.length,
+        ugc_album: ugc.albumName,
+        ugc_session_id: ugc.sessionId,
         provider: shot.result.provider_name,
         model: shot.result.model_name,
         source_urls: [ugc.sourceUrl].filter((s) => s && !s.startsWith("data:")),
       },
     });
+    shot.saved = true;
+    renderUgcChain();
     ugcStatus(`Shot ${i + 1} saved to library ✓`, "success");
   } catch (e) {
     ugcStatus(`Save failed: ${e.message}`, "error");
@@ -1233,9 +1270,55 @@ function downloadUgcShot(i) {
   if (!shot?.result) return;
   const a = document.createElement("a");
   a.href = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
-  a.download = `readycode-ugc-${i + 1}-${Date.now()}.png`;
+  const slug = (ugc.albumName || "ugc").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40);
+  a.download = `${slug}-shot-${i + 1}.png`;
   a.click();
 }
+
+// --- bulk actions ---
+function ugcReadyShots() { return ugc.shots.map((s, i) => ({ s, i })).filter(({ s }) => !!s.result); }
+function ugcSelectedShots() { return ugcReadyShots().filter(({ s }) => s.selected); }
+
+async function downloadUgcMany(list, label) {
+  if (!list.length) { ugcStatus(`No shots to ${label}.`, "error"); return; }
+  for (const { i } of list) {
+    downloadUgcShot(i);
+    await new Promise((r) => setTimeout(r, 250)); // browsers throttle rapid downloads
+  }
+  ugcStatus(`${label}: ${list.length} shot(s) downloaded.`, "success");
+}
+async function saveUgcMany(list, label) {
+  if (!list.length) { ugcStatus(`No shots to ${label}.`, "error"); return; }
+  let ok = 0, fail = 0;
+  for (const { i } of list) {
+    try { await saveUgcShot(i); ok++; } catch (_) { fail++; }
+  }
+  ugcStatus(`${label}: ${ok} saved${fail ? `, ${fail} failed` : ""}.`, fail ? "error" : "success");
+}
+
+function wireUgcToolbars() {
+  document.querySelectorAll(".ugc-select-all").forEach((b) =>
+    b.addEventListener("click", () => {
+      const ready = ugcReadyShots();
+      const allSelected = ready.length > 0 && ready.every(({ s }) => s.selected);
+      ready.forEach(({ s }) => { s.selected = !allSelected; });
+      renderUgcChain();
+    })
+  );
+  document.querySelectorAll(".ugc-download-selected").forEach((b) =>
+    b.addEventListener("click", () => downloadUgcMany(ugcSelectedShots(), "Download selected"))
+  );
+  document.querySelectorAll(".ugc-save-selected").forEach((b) =>
+    b.addEventListener("click", () => saveUgcMany(ugcSelectedShots(), "Save selected"))
+  );
+  document.querySelectorAll(".ugc-download-all").forEach((b) =>
+    b.addEventListener("click", () => downloadUgcMany(ugcReadyShots(), "Download all"))
+  );
+  document.querySelectorAll(".ugc-save-all").forEach((b) =>
+    b.addEventListener("click", () => saveUgcMany(ugcReadyShots(), "Save all"))
+  );
+}
+wireUgcToolbars();
 
 // Initialise default template
 loadUgcTemplate("person");

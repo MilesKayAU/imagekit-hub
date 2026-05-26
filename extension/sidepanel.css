@@ -93,6 +93,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .ugc-shot-card .shot-meta { font-size: 11px; color: #666; margin-top: 4px; }
 .ugc-shot-card .refine-row { display: flex; gap: 6px; margin-top: 6px; }
 .ugc-shot-card .refine-row input { flex: 1; padding: 6px 8px; border: 1px solid #d4d4d4; border-radius: 6px; font-size: 12px; font-family: inherit; }
+.ugc-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin: 8px 0; background: #f6f5ff; border: 1px solid #ddd6fe; border-radius: 8px; }
+.ugc-toolbar button { font-size: 11px; padding: 5px 8px; }
+.ugc-shot-card .shot-select { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #4f46e5; margin-left: 8px; }
+.ugc-shot-card.saved .shot-state::after { content: " · saved"; color: #4f46e5; }
 .ugc-model-preset.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
 #ugc-model-input { font-family: monospace; font-size: 11px; }
 .model-footer { margin: 8px 0 0; font-size: 10px; }
