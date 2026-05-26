@@ -654,8 +654,17 @@ async function renderLibrary() {
         addExtra(url, url);
         activateTab("respin");
       });
+      const vidBtn = document.createElement("button");
+      vidBtn.type = "button";
+      vidBtn.textContent = "→ Video";
+      vidBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!url) return;
+        sendImageToVideo({ url, dataUrl: url });
+      });
       actions.appendChild(useBtn);
       actions.appendChild(addBtn);
+      actions.appendChild(vidBtn);
       card.appendChild(actions);
       grid.appendChild(card);
     }
@@ -691,6 +700,7 @@ async function openLibPicker(target) {
         if (!url) return;
         if (libPickerTarget === "source") setSource({ url, dataUrl: url });
         else if (libPickerTarget === "ugc-source") ugcSetSource({ url, dataUrl: url });
+        else if (libPickerTarget === "video-source") videoSetSource({ url, dataUrl: url });
         else addExtra(url, url);
         libPicker.close();
       });
