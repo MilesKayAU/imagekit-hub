@@ -1044,7 +1044,7 @@ function renderUgcChain() {
       const approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "secondary";
-      approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & continue";
+      approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & unlock next";
       approveBtn.addEventListener("click", () => approveUgcShot(i));
       actions.appendChild(approveBtn);
 
@@ -1173,10 +1173,9 @@ function approveUgcShot(i) {
   if (!shot?.result) return;
   shot.status = "approved";
   renderUgcChain();
-  // Auto-fire next shot if any
   const next = ugc.shots[i + 1];
   if (next && next.status === "idle") {
-    setTimeout(() => generateUgcShot(i + 1), 250);
+    ugcStatus(`Shot ${i + 1} approved — edit shot ${i + 2}'s prompt, then click Generate shot.`, "info");
   } else {
     ugcStatus("Chain complete ✓ — save the shots you want to keep.", "success");
   }
