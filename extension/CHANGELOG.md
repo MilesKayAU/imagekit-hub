@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.27 — Stay faithful to source image (Image → Video)
+- Each Image → Video slot now has a "Stay faithful to source image" toggle (default ON). When enabled, the extension prepends a lock-frame instruction to the prompt that tells the model to treat the uploaded image as a pixel-accurate first frame and only add motion — no redesigning the subject, no new objects, no new hands/people. Especially important for Grok Imagine, which otherwise drifts off the reference.
+- Each slot now shows a small thumbnail of the source image being submitted, so it's visually obvious which reference is going to the model.
+- Every video submission logs `{ model, faithful, image_url (truncated), prompt_chars }` to the DevTools console so you can verify the source image is being sent.
+
 ## 1.0.26 — Pop out for larger video preview
 - Added a "⧉ Pop out" button in the header that opens the extension UI in a resizable standalone window, so the Image → Video player isn't squashed by Chrome's narrow side panel.
 - Video players now use `object-fit: contain` with a 70vh cap, so the preview scales up cleanly in the popped-out window without distortion.

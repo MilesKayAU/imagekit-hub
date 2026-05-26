@@ -1441,6 +1441,7 @@ const video = {
       playbackLoading: false,
       saved: false,
       pollAbort: false,
+      faithful: true, // Stay faithful to source image — prepends a lock-frame preamble
     };
   }),
   sessionId: null,
@@ -1452,6 +1453,25 @@ function newVideoSession() {
   video.sessionId = id;
   video.albumName = `I2V · ${new Date().toISOString().slice(0,16).replace("T"," ")}`;
   return id;
+}
+
+// "Stay faithful to source image" preamble. Prepended to the prompt so the
+// generative video model uses the uploaded image as a locked first frame and
+// only adds camera/physical motion. Especially important for Grok Imagine,
+// which otherwise redesigns the subject.
+const FAITHFUL_PREAMBLE = [
+  "FIRST FRAME = the reference image, pixel-accurate.",
+  "Do NOT redesign, restyle, recolor, or replace the subject.",
+  "Preserve exact geometry, materials, colour, proportions, branding, and background.",
+  "No new objects, no new hands, no new people, no new props unless explicitly listed below.",
+  "Only add subtle camera motion (slow push-in / parallax) and natural physical motion.",
+  "Photoreal, identical lighting and white balance to the reference.",
+  "---",
+].join(" ");
+
+function buildEffectivePrompt(slot, rawPrompt) {
+  if (!slot?.faithful) return rawPrompt;
+  return `${FAITHFUL_PREAMBLE}\n${rawPrompt}`;
 }
 
 function revokeSlotPlaybackUrl(slot) {
@@ -1686,6 +1706,39 @@ function renderVideoSlots() {
     ta.addEventListener("input", () => { slot.prompt = ta.value; refreshVideoGenerateAll(); });
     card.appendChild(ta);
 
+    // "Stay faithful to source image" toggle — locks the first frame to the
+    // uploaded image. Especially important for Grok Imagine.
+    const faithRow = document.createElement("label");
+    faithRow.className = "row";
+    faithRow.style.cssText = "display:flex;align-items:flex-start;gap:6px;margin-top:6px;font-size:11px;color:#444;cursor:pointer;";
+    const faithCb = document.createElement("input");
+    faithCb.type = "checkbox";
+    faithCb.checked = !!slot.faithful;
+    faithCb.style.cssText = "margin-top:2px;flex:0 0 auto;";
+    faithCb.addEventListener("change", () => { slot.faithful = faithCb.checked; });
+    const faithText = document.createElement("span");
+    faithText.innerHTML = "<strong>Stay faithful to source image</strong> — prepends a lock-frame instruction so the model animates your exact image instead of redesigning it. Recommended for Grok Imagine.";
+    faithRow.appendChild(faithCb);
+    faithRow.appendChild(faithText);
+    card.appendChild(faithRow);
+
+    // Source-image thumbnail proof: shows which image is being submitted with
+    // this slot, so it's visually obvious the right reference is attached.
+    if (video.sourceUrl) {
+      const srcRow = document.createElement("div");
+      srcRow.className = "row";
+      srcRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10px;color:#666;";
+      const thumb = document.createElement("img");
+      thumb.src = video.sourceUrl;
+      thumb.alt = "Source reference";
+      thumb.style.cssText = "width:42px;height:42px;object-fit:cover;border-radius:4px;border:1px solid #d4d4d4;flex:0 0 auto;";
+      const lbl = document.createElement("span");
+      lbl.textContent = "Source image sent to model";
+      srcRow.appendChild(thumb);
+      srcRow.appendChild(lbl);
+      card.appendChild(srcRow);
+    }
+
     // Actions row
     const actions = document.createElement("div");
     actions.className = "row";
@@ -1777,12 +1830,20 @@ async function generateVideoSlot(i) {
   slot.progressMsg = "Submitting job…";
   slot.pollAbort = false;
   renderVideoSlots();
+  const effectivePrompt = buildEffectivePrompt(slot, prompt);
+  const srcPreview = String(video.sourceUrl || "").slice(0, 80);
+  console.log(`[imagekit-video-generate] slot ${i + 1} submit`, {
+    model: slot.model,
+    faithful: !!slot.faithful,
+    image_url: srcPreview + (video.sourceUrl?.length > 80 ? "…" : ""),
+    prompt_chars: effectivePrompt.length,
+  });
   try {
     const data = await api("imagekit-video-generate", {
       provider_id: providerId,
       model: slot.model,
       model_slug: slot.model,
-      prompt,
+      prompt: effectivePrompt,
       image_url: video.sourceUrl,
       duration_seconds: slot.duration,
       resolution: slot.resolution,
