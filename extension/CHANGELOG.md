@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.5 — Recommended models picker
+- New **Browse recommended image models** panel under "Your AI" (shows when your selected BYOK provider is OpenRouter). Sort by **Popularity**, **Price**, or **Speed**, tap **Use this**, and the next Generate/Refine is locked to that specific OpenRouter model id (e.g. `google/gemini-2.5-flash-image`). Tap **Clear** to fall back to `openrouter/auto`.
+- Catalog is fetched from `https://readycode.ai/api/public/imagekit/models` (refreshed daily by ReadyCode straight from openrouter.ai) and cached in the side panel for 6 hours.
+- Requires the ReadyCode project to expose the public `/api/public/imagekit/models` endpoint and run the daily `imagekit-refresh-models` cron. See the prompt in `.lovable/plan.md`.
+
 ## 1.0.4 — Prompt engineering (BYOK)
 - New **✨ Enhance with AI** button under the prompt field. Sends your rough prompt to your own BYOK provider, rewrites it as a production-grade image-generation prompt (lighting, lens, composition, mood, palette), and shows the result in an **editable** textarea so you can tweak before hitting Generate. "Use this" applies it to the prompt field; "Re-enhance" generates another variation.
 - Requires the ReadyCode edge function `imagekit-enhance-prompt` (text completion via the user's BYOK provider). See the ReadyCode prompt below.

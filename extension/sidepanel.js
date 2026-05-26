@@ -6,6 +6,9 @@ const SUPABASE_URL = "https://gmlnipblxehgadagxakt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_IPEmcWQkq2htpTTubattrQ_NE_mt3Eo";
 const TOKEN_KEY = "rc_imagekit_token";
 const OPENROUTER_AUTO_IMAGE_MODEL = "openrouter/auto";
+const RC_API_BASE = "https://readycode.ai";
+const MODEL_CATALOG_CACHE_KEY = "rc_imagekit_models_cache";
+const MODEL_CATALOG_TTL_MS = 6 * 60 * 60 * 1000; // 6h
 
 function decodeBundle(raw) {
   const t = (raw || "").trim();
@@ -40,6 +43,9 @@ const state = {
   lastPrompt: "",      // last prompt sent, for refine history display
   lastProviderId: null,
   lastModel: null,
+  modelOverride: null, // explicit model id chosen from the catalog picker
+  modelCatalog: [],    // [{ id, name, provider, ... }]
+  modelSort: "popularity",
 };
 
 // --- tiny DOM helpers ---
@@ -278,6 +284,177 @@ $("discard-enhanced").addEventListener("click", () => {
   $("enhanced-prompt").value = "";
 });
 
+// --- recommended models picker ---
+function effectiveModelForProvider(provider) {
+  if (state.modelOverride) return state.modelOverride;
+  return provider ? imageModelForProvider(provider) : null;
+}
+
+function updateModelOverrideUI() {
+  const row = $("model-override-row");
+  if (state.modelOverride) {
+    row.classList.remove("hidden");
+    $("model-override-id").textContent = state.modelOverride;
+  } else {
+    row.classList.add("hidden");
+  }
+  renderModelList(); // re-highlight active
+}
+
+$("model-override-clear").addEventListener("click", () => {
+  state.modelOverride = null;
+  updateModelOverrideUI();
+});
+
+function updateModelPickerVisibility() {
+  const providerId = $("provider").value || null;
+  const provider = state.providers.find((p) => p.id === providerId);
+  const show = provider && isOpenRouterProvider(provider);
+  $("model-picker").classList.toggle("hidden", !show);
+  if (!show) {
+    // Clear override if it no longer applies
+    if (state.modelOverride) {
+      state.modelOverride = null;
+      updateModelOverrideUI();
+    }
+  }
+}
+
+async function loadModelCatalog({ force = false } = {}) {
+  if (!force) {
+    try {
+      const { [MODEL_CATALOG_CACHE_KEY]: cached } = await chrome.storage.local.get(MODEL_CATALOG_CACHE_KEY);
+      if (cached && Date.now() - cached.ts < MODEL_CATALOG_TTL_MS && Array.isArray(cached.models)) {
+        state.modelCatalog = cached.models;
+        return { fromCache: true, refreshedAt: cached.refreshedAt };
+      }
+    } catch {}
+  }
+  const res = await fetch(`${RC_API_BASE}/api/public/imagekit/models?sort=${state.modelSort}&limit=60`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const models = Array.isArray(data?.models) ? data.models : [];
+  state.modelCatalog = models;
+  try {
+    await chrome.storage.local.set({
+      [MODEL_CATALOG_CACHE_KEY]: { ts: Date.now(), refreshedAt: data?.refreshed_at || null, models },
+    });
+  } catch {}
+  return { fromCache: false, refreshedAt: data?.refreshed_at || null };
+}
+
+function sortModelsLocal(models, sort) {
+  const out = [...models];
+  if (sort === "price") {
+    out.sort((a, b) => (priceScore(a) - priceScore(b)));
+  } else if (sort === "speed") {
+    out.sort((a, b) => (latencyScore(a) - latencyScore(b)));
+  } else {
+    out.sort((a, b) => (b.weekly_tokens || 0) - (a.weekly_tokens || 0));
+  }
+  return out;
+}
+function priceScore(m) {
+  if (typeof m.pricing_image === "number" && m.pricing_image > 0) return m.pricing_image;
+  return (m.pricing_prompt || 0) + (m.pricing_completion || 0) * 4;
+}
+function latencyScore(m) {
+  if (typeof m.median_latency_ms === "number") return m.median_latency_ms;
+  if (typeof m.throughput_tps === "number" && m.throughput_tps > 0) return 1e6 / m.throughput_tps;
+  return Number.POSITIVE_INFINITY;
+}
+
+function fmtPrice(m) {
+  if (typeof m.pricing_image === "number" && m.pricing_image > 0) return `$${m.pricing_image.toFixed(3)}/img`;
+  if (typeof m.pricing_prompt === "number") return `$${(m.pricing_prompt).toFixed(2)}/1M in`;
+  return "—";
+}
+function fmtSpeed(m) {
+  if (typeof m.median_latency_ms === "number") return `~${(m.median_latency_ms/1000).toFixed(1)}s`;
+  if (typeof m.throughput_tps === "number") return `${Math.round(m.throughput_tps)} tps`;
+  return "—";
+}
+function fmtPop(m) {
+  const t = m.weekly_tokens || 0;
+  if (!t) return "—";
+  if (t >= 1e9) return `${(t/1e9).toFixed(1)}B/wk`;
+  if (t >= 1e6) return `${(t/1e6).toFixed(1)}M/wk`;
+  if (t >= 1e3) return `${(t/1e3).toFixed(1)}K/wk`;
+  return `${t}/wk`;
+}
+
+function renderModelList() {
+  const list = $("model-list");
+  const sorted = sortModelsLocal(state.modelCatalog, state.modelSort);
+  if (!sorted.length) {
+    list.innerHTML = "<p class='muted'>No models yet. The catalog refreshes daily from openrouter.ai.</p>";
+    return;
+  }
+  list.innerHTML = "";
+  for (const m of sorted) {
+    const card = document.createElement("div");
+    card.className = "model-card" + (state.modelOverride === m.id ? " active" : "");
+    const row1 = document.createElement("div");
+    row1.className = "row1";
+    const left = document.createElement("div");
+    left.innerHTML = `<span class="name">${escapeHtml(m.name || m.id)}</span> <span class="provider-chip">${escapeHtml(m.provider || "")}</span>`;
+    const useBtn = document.createElement("button");
+    useBtn.type = "button";
+    useBtn.className = "primary use-btn";
+    useBtn.textContent = state.modelOverride === m.id ? "In use" : "Use this";
+    useBtn.addEventListener("click", () => {
+      state.modelOverride = m.id;
+      updateModelOverrideUI();
+      setStatus(`Next Generate will use ${m.id}.`, "success");
+    });
+    row1.appendChild(left);
+    row1.appendChild(useBtn);
+    card.appendChild(row1);
+    if (m.description) {
+      const desc = document.createElement("div");
+      desc.className = "desc";
+      desc.textContent = m.description;
+      card.appendChild(desc);
+    }
+    const stats = document.createElement("div");
+    stats.className = "stats";
+    stats.innerHTML = `<span>${fmtPrice(m)}</span><span>${fmtSpeed(m)}</span><span>${fmtPop(m)}</span>`;
+    card.appendChild(stats);
+    list.appendChild(card);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+document.querySelectorAll(".sort-tab").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".sort-tab").forEach((x) => x.classList.toggle("active", x === b));
+    state.modelSort = b.dataset.sort;
+    renderModelList();
+  });
+});
+
+async function refreshModelCatalogUI({ force = false } = {}) {
+  const footer = $("model-footer");
+  try {
+    const { refreshedAt, fromCache } = await loadModelCatalog({ force });
+    renderModelList();
+    const when = refreshedAt ? new Date(refreshedAt).toLocaleString() : "unknown";
+    footer.textContent = `Source: openrouter.ai · refreshed ${when}${fromCache ? " (cached)" : ""}.`;
+  } catch (e) {
+    $("model-list").innerHTML = `<p class='muted'>Couldn't load catalog: ${e.message}. The ReadyCode endpoint may not be live yet.</p>`;
+  }
+}
+
+$("model-refresh").addEventListener("click", () => refreshModelCatalogUI({ force: true }));
+$("model-picker").addEventListener("toggle", (e) => {
+  if (e.target.open && !state.modelCatalog.length) refreshModelCatalogUI();
+});
+
+document.getElementById("provider").addEventListener("change", updateModelPickerVisibility);
+
 // --- generate ---
 $("generate").addEventListener("click", async () => {
   $("generate").disabled = true;
@@ -289,7 +466,7 @@ $("generate").addEventListener("click", async () => {
     const finalPrompt = [styleText, userPrompt].filter(Boolean).join(" ");
     const providerId = $("provider").value || null;
     const provider = state.providers.find((p) => p.id === providerId);
-    const model = provider ? imageModelForProvider(provider) : null;
+    const model = effectiveModelForProvider(provider);
     const images = [state.sourceUrl, ...state.extras.map((e) => e.url)].filter(Boolean);
     const data = await api("imagekit-generate", {
       provider_id: providerId,
@@ -563,6 +740,7 @@ async function bootstrap() {
       }
     }
     refreshGenerateButton();
+    updateModelPickerVisibility();
   } catch (e) {
     setStatus(`Couldn't load BYOK providers: ${e.message}`, "error");
   }

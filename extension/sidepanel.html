@@ -122,6 +122,21 @@
         <label class="block-label">3. Your AI</label>
         <select id="provider"></select>
         <p class="muted" id="provider-hint">Uses your BYOK key. ReadyCode pays nothing. <a href="https://readycode.ai/byok" target="_blank">Manage keys</a></p>
+        <div id="model-override-row" class="model-override hidden">
+          Using <code id="model-override-id"></code>
+          <button type="button" id="model-override-clear" class="link-btn">Clear</button>
+        </div>
+        <details id="model-picker" class="model-picker hidden">
+          <summary>Browse recommended image models ↓</summary>
+          <div class="sort-tabs">
+            <button type="button" class="sort-tab active" data-sort="popularity">Popularity</button>
+            <button type="button" class="sort-tab" data-sort="price">Price</button>
+            <button type="button" class="sort-tab" data-sort="speed">Speed</button>
+            <button type="button" id="model-refresh" class="link-btn" style="margin-left:auto;" title="Refresh from ReadyCode">↻</button>
+          </div>
+          <div id="model-list" class="model-list"><p class="muted">Loading…</p></div>
+          <p class="muted model-footer" id="model-footer">Source: openrouter.ai · refreshed daily by ReadyCode.</p>
+        </details>
       </div>
 
       <button id="generate" class="primary" disabled>Generate</button>
