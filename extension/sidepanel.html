@@ -137,6 +137,14 @@
           <div id="model-list" class="model-list"><p class="muted">Loading…</p></div>
           <p class="muted model-footer" id="model-footer">Source: openrouter.ai · refreshed daily by ReadyCode.</p>
         </details>
+        <div id="custom-model-row" class="custom-model hidden">
+          <label class="block-label" style="margin-top:10px;">Or use any OpenRouter model id</label>
+          <p class="muted" style="margin:0 0 6px;">Paste any image-capable model slug from <a href="https://openrouter.ai/models?input_modalities=image" target="_blank">openrouter.ai/models</a> — e.g. <code>x-ai/grok-imagine</code>, <code>google/gemini-2.5-flash-image</code>.</p>
+          <div class="row">
+            <input id="custom-model-input" type="text" placeholder="provider/model-id" spellcheck="false" />
+            <button type="button" id="custom-model-apply" class="primary">Use</button>
+          </div>
+        </div>
       </div>
 
       <button id="generate" class="primary" disabled>Generate</button>

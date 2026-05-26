@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.6 — Custom OpenRouter model id
+- New **Or use any OpenRouter model id** field under the recommended models picker. Paste any image-capable slug from openrouter.ai/models (e.g. `x-ai/grok-imagine`, `google/gemini-2.5-flash-image`) and hit **Use** — the next Generate/Refine routes to that exact model. Works even before the daily catalog has indexed a brand-new model.
+
 ## 1.0.5 — Recommended models picker
 - New **Browse recommended image models** panel under "Your AI" (shows when your selected BYOK provider is OpenRouter). Sort by **Popularity**, **Price**, or **Speed**, tap **Use this**, and the next Generate/Refine is locked to that specific OpenRouter model id (e.g. `google/gemini-2.5-flash-image`). Tap **Clear** to fall back to `openrouter/auto`.
 - Catalog is fetched from `https://readycode.ai/api/public/imagekit/models` (refreshed daily by ReadyCode straight from openrouter.ai) and cached in the side panel for 6 hours.

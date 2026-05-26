@@ -311,6 +311,7 @@ function updateModelPickerVisibility() {
   const provider = state.providers.find((p) => p.id === providerId);
   const show = provider && isOpenRouterProvider(provider);
   $("model-picker").classList.toggle("hidden", !show);
+  $("custom-model-row").classList.toggle("hidden", !show);
   if (!show) {
     // Clear override if it no longer applies
     if (state.modelOverride) {
@@ -451,6 +452,20 @@ async function refreshModelCatalogUI({ force = false } = {}) {
 $("model-refresh").addEventListener("click", () => refreshModelCatalogUI({ force: true }));
 $("model-picker").addEventListener("toggle", (e) => {
   if (e.target.open && !state.modelCatalog.length) refreshModelCatalogUI();
+});
+
+$("custom-model-apply").addEventListener("click", () => {
+  const id = $("custom-model-input").value.trim();
+  if (!id || !/^[a-z0-9._-]+\/[a-z0-9._:-]+$/i.test(id)) {
+    setStatus("Enter a valid OpenRouter model id, e.g. x-ai/grok-imagine", "error");
+    return;
+  }
+  state.modelOverride = id;
+  updateModelOverrideUI();
+  setStatus(`Next Generate will use ${id}.`, "success");
+});
+$("custom-model-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("custom-model-apply").click(); }
 });
 
 document.getElementById("provider").addEventListener("change", updateModelPickerVisibility);
