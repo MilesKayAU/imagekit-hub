@@ -311,6 +311,7 @@ function updateModelPickerVisibility() {
   const provider = state.providers.find((p) => p.id === providerId);
   const show = provider && isOpenRouterProvider(provider);
   $("model-picker").classList.toggle("hidden", !show);
+  $("custom-model-row").classList.toggle("hidden", !show);
   if (!show) {
     // Clear override if it no longer applies
     if (state.modelOverride) {
