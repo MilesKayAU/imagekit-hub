@@ -1,5 +1,9 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.17 — Auto-fallback to OpenRouter for fal-ai slugs (server-side)
+- Backend now transparently reroutes `fal-ai/*` video slugs to their OpenRouter equivalent when no fal.ai key is configured but an OpenRouter key is. No extension changes required — pick any fal slug and it will run on whichever key you have.
+- Returns a clear error only when neither key can service the slug.
+
 ## 1.0.16 — Dual-provider Image → Video (fal.ai + OpenRouter)
 - **Backend wired up.** The Image → Video tab now talks to the new `imagekit-video-generate` / `imagekit-video-status` / `imagekit-save` endpoints.
 - **Two providers, one tab.** Each slot's model dropdown is grouped under **fal.ai** and **OpenRouter** optgroups; the backend routes by slug prefix — `fal-ai/*` uses your fal.ai BYOK key, anything else uses your OpenRouter BYOK key. Add either or both.
