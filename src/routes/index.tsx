@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import heroSource from "@/assets/hero-source.png";
 import heroResult from "@/assets/hero-result.png";
+import heroLibrary from "@/assets/hero-library.png";
 
 const TITLE = "ReadyCode ImageKit — AI image studio in your browser side panel";
 const DESCRIPTION =
@@ -176,6 +177,36 @@ function Index() {
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      {/* Your private library */}
+      <section className="border-b border-border/60">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-20 md:grid-cols-2">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Your private image library
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              Every save lands in a private library scoped to your ReadyCode account — accessible from any device. Reuse a saved shot as the starting image for your next respin, or pull two together to combine a product with an ingredient.
+            </p>
+            <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
+              <li className="flex gap-2"><span className="text-primary">•</span> Up to 100 images / 200 MB free</li>
+              <li className="flex gap-2"><span className="text-primary">•</span> One-click download or re-use as source</li>
+              <li className="flex gap-2"><span className="text-primary">•</span> Combine multiple references into one new image</li>
+            </ul>
+          </div>
+          <div className="relative">
+            <div className="absolute -inset-6 -z-10 rounded-3xl bg-gradient-to-tr from-primary/15 via-primary/5 to-transparent blur-2xl" />
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+              <img
+                src={heroLibrary}
+                alt="ReadyCode ImageKit library showing saved AI-generated product photos"
+                className="w-full"
+                loading="lazy"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
