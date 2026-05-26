@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.19 — Echo job identity on status polls
+- `imagekit-video-status` POST now echoes back the snake_case `provider`, `provider_id`, `model_slug`, `status_url`, and `response_url` returned by the generate response. Without these the backend rejected every poll with 400 and the slot hung on Queued forever (OpenRouter was never polled).
+
 ## 1.0.18 — OpenRouter videos use the dedicated /videos API (server-side)
 - Backend now calls OpenRouter's async `POST /api/v1/videos` + `GET /api/v1/videos/{id}` endpoints instead of `/v1/chat/completions` for video slugs. Image-to-video sends the source as `frame_images[{ frame_type: "first_frame" }]`.
 - Fixes "OpenRouter has no model at x-ai/grok-imagine-video" — the slug was always valid; we were hitting the wrong endpoint.
