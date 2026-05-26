@@ -236,25 +236,82 @@ $("generate").addEventListener("click", async () => {
     const providerId = $("provider").value || null;
     const provider = state.providers.find((p) => p.id === providerId);
     const model = provider ? imageModelForProvider(provider) : null;
+    const images = [state.sourceUrl, ...state.extras.map((e) => e.url)].filter(Boolean);
     const data = await api("imagekit-generate", {
       provider_id: providerId,
       model,
       mode: "lifestyle",
       prompt: finalPrompt,
-      images: [state.sourceUrl],
+      images,
     });
     if (data.error) throw new Error(data.error);
     state.result = data;
+    state.lastPrompt = finalPrompt;
+    state.lastProviderId = providerId;
+    state.lastModel = model;
     const dataUrl = `data:${data.mime_type};base64,${data.image_base64}`;
     $("output-img").src = dataUrl;
     $("output-meta").textContent = `${data.provider_name} · ${data.model_name} · ${(data.duration_ms/1000).toFixed(1)}s`;
     $("output").classList.remove("hidden");
+    $("refine-history").textContent = "";
+    $("refine-prompt").value = "";
     setStatus("", "info");
   } catch (e) {
     setStatus(e.message || "Generation failed", "error");
   } finally {
     refreshGenerateButton();
   }
+});
+
+// --- refine / use as source / start over ---
+$("refine-btn").addEventListener("click", async () => {
+  if (!state.result) return;
+  const refineText = $("refine-prompt").value.trim();
+  if (!refineText) { setStatus("Type what you'd like to change.", "error"); return; }
+  $("refine-btn").disabled = true;
+  setStatus("Refining… 10–30s", "info");
+  try {
+    const currentDataUrl = `data:${state.result.mime_type};base64,${state.result.image_base64}`;
+    const images = [currentDataUrl, ...state.extras.map((e) => e.url)].filter(Boolean);
+    const data = await api("imagekit-generate", {
+      provider_id: state.lastProviderId,
+      model: state.lastModel,
+      mode: "refine",
+      prompt: refineText,
+      images,
+    });
+    if (data.error) throw new Error(data.error);
+    state.result = data;
+    const prev = state.lastPrompt;
+    state.lastPrompt = refineText;
+    const dataUrl = `data:${data.mime_type};base64,${data.image_base64}`;
+    $("output-img").src = dataUrl;
+    $("output-meta").textContent = `${data.provider_name} · ${data.model_name} · ${(data.duration_ms/1000).toFixed(1)}s`;
+    $("refine-history").textContent = `Previous: ${prev}`;
+    $("refine-prompt").value = "";
+    setStatus("", "info");
+  } catch (e) {
+    setStatus(e.message || "Refine failed", "error");
+  } finally {
+    $("refine-btn").disabled = false;
+  }
+});
+
+$("use-as-source").addEventListener("click", () => {
+  if (!state.result) return;
+  const dataUrl = `data:${state.result.mime_type};base64,${state.result.image_base64}`;
+  setSource({ url: dataUrl, dataUrl });
+  $("output").classList.add("hidden");
+  state.result = null;
+  setStatus("Using result as new source.", "success");
+});
+
+$("start-over").addEventListener("click", () => {
+  $("output").classList.add("hidden");
+  state.result = null;
+  $("refine-prompt").value = "";
+  $("refine-history").textContent = "";
+  setStatus("", "info");
 });
 
 $("download").addEventListener("click", () => {
