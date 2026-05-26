@@ -1325,3 +1325,576 @@ wireUgcToolbars();
 // Initialise default template
 loadUgcTemplate("person");
 updateUgcModelChips();
+
+// ============================================================
+// Image → Video tab
+// ============================================================
+
+// Tips reflect the structured prompt pattern from
+// https://deevid.ai/blog/grok-imagine-video-review:
+//   Subject → Motion → Camera → Environment → Style → Timing → Audio intent
+const VIDEO_PROMPT_SYSTEM = `You are a senior motion director writing prompts for AI image-to-video models (Grok Imagine Video, Google Veo, Kling).
+Rewrite the user's rough idea into ONE production-ready video prompt that follows this structure:
+Subject → Motion → Camera → Environment → Style → Timing → Audio intent.
+Rules:
+- Keep the subject locked to what is in the source image. Do not change identity, wardrobe, or product details.
+- Insert ONE explicit motion verb (rotate, dolly-in, pan-left, orbit, push-in, parallax, walk-cycle, etc).
+- Match pacing language to the target duration (slow elegant reveal for 10s+, snappy loop for 5s, building energy for in-between).
+- Audio line: include only if the target model supports synced audio (Veo / Sora). For Grok / Kling, return the line "Audio: n/a".
+- Under 90 words. No preamble, no bullets, no markdown. Return only the prompt text.`;
+
+const VIDEO_MODELS = {
+  "x-ai/grok-imagine-video":   { label: "Grok Imagine Video",  durMin: 1, durMax: 15, durDefault: 8, resolutions: ["480p","720p"],         aspects: ["16:9","9:16","1:1","4:3","3:4","3:2","2:3"], audio: false, pricePerSec: { "480p": 0.05, "720p": 0.07 } },
+  "google/veo-3.1-fast":       { label: "Google Veo 3.1 Fast", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "720p": 0.10, "1080p": 0.10 } },
+  "google/veo-3.1-lite":       { label: "Google Veo 3.1 Lite", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "720p": 0.05, "1080p": 0.05 } },
+  "google/veo-3.1":            { label: "Google Veo 3.1",      durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["1080p"],               aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "1080p": 0.20 } },
+  "kwaivgi/kling-v3.0-std":    { label: "Kling v3 Standard",   durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p"],                aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.126 } },
+  "kwaivgi/kling-v3.0-pro":    { label: "Kling v3 Pro",        durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.168, "1080p": 0.168 } },
+  "minimax/hailuo-2.3":        { label: "MiniMax Hailuo 2.3",  durMin: 5, durMax: 10, durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.0817, "1080p": 0.0817 } },
+  "alibaba/wan-2.6":           { label: "Alibaba Wan 2.6",     durMin: 4, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: true,  pricePerSec: { "720p": 0.04, "1080p": 0.04 } },
+  "openai/sora-2-pro":         { label: "OpenAI Sora 2 Pro",   durMin: 4, durMax: 12, durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: true,  pricePerSec: { "720p": 0.30, "1080p": 0.30 } },
+};
+
+const VIDEO_SLOT_DEFAULTS = [
+  { model: "x-ai/grok-imagine-video", resolution: "720p", aspect: "16:9" },
+  { model: "google/veo-3.1-fast",     resolution: "720p", aspect: "16:9" },
+  { model: "kwaivgi/kling-v3.0-std",  resolution: "720p", aspect: "16:9" },
+];
+
+const video = {
+  sourceUrl: null,
+  sourceDataUrl: null,
+  slots: VIDEO_SLOT_DEFAULTS.map((d) => {
+    const m = VIDEO_MODELS[d.model];
+    return {
+      model: d.model,
+      resolution: d.resolution,
+      aspect: d.aspect,
+      duration: m.durDefault,
+      prompt: "",
+      status: "idle", // idle | queued | rendering | ready | failed
+      progressMsg: "",
+      jobId: null,
+      result: null,   // { video_url, mime_type, provider_name, model_name, duration_s }
+      saved: false,
+      pollAbort: false,
+    };
+  }),
+  sessionId: null,
+  albumName: null,
+};
+
+function newVideoSession() {
+  const id = (crypto.randomUUID?.() || `i2v-${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
+  video.sessionId = id;
+  video.albumName = `I2V · ${new Date().toISOString().slice(0,16).replace("T"," ")}`;
+  return id;
+}
+
+function videoStatus(msg, kind = "info") {
+  const el = $("video-status");
+  if (!msg) { el.classList.add("hidden"); return; }
+  el.className = `status ${kind}`;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function videoSetSource({ url = null, dataUrl = null }) {
+  video.sourceUrl = url;
+  video.sourceDataUrl = dataUrl;
+  const prev = $("video-source-preview");
+  const src = dataUrl || url;
+  if (src) {
+    prev.classList.remove("empty");
+    prev.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = src;
+    prev.appendChild(img);
+  }
+  refreshVideoGenerateAll();
+}
+
+function refreshVideoGenerateAll() {
+  const hasSrc = !!(video.sourceUrl || video.sourceDataUrl);
+  const hasPrompt = video.slots.some((s) => (s.prompt || $("vp-master").value).trim().length > 4);
+  const linked = !!state.token;
+  const hasProvider = state.providers.length > 0;
+  $("vp-generate-all").disabled = !(hasSrc && hasPrompt && linked && hasProvider);
+  updateVideoCostTotal();
+}
+
+function updateVideoCostTotal() {
+  let total = 0;
+  for (const s of video.slots) {
+    const m = VIDEO_MODELS[s.model];
+    if (!m) continue;
+    const p = m.pricePerSec[s.resolution] ?? Object.values(m.pricePerSec)[0] ?? 0;
+    total += p * s.duration;
+  }
+  $("vp-cost-total").textContent = total > 0 ? `Est. total: $${total.toFixed(2)} across 3 slots` : "";
+}
+
+function composeMasterFromFields() {
+  const parts = [
+    $("vp-subject").value.trim(),
+    $("vp-motion").value.trim() && `Motion: ${$("vp-motion").value.trim()}`,
+    $("vp-camera").value.trim() && `Camera: ${$("vp-camera").value.trim()}`,
+    $("vp-env").value.trim() && `Environment: ${$("vp-env").value.trim()}`,
+    $("vp-style").value.trim() && `Style: ${$("vp-style").value.trim()}`,
+    $("vp-timing").value.trim() && `Timing: ${$("vp-timing").value.trim()}`,
+    $("vp-audio").value.trim() && `Audio: ${$("vp-audio").value.trim()}`,
+  ].filter(Boolean);
+  if (parts.length === 0) return "";
+  return parts.join(". ");
+}
+
+function renderVideoSlots() {
+  const root = $("video-slots");
+  root.innerHTML = "";
+  video.slots.forEach((slot, i) => {
+    const m = VIDEO_MODELS[slot.model] || VIDEO_MODELS["x-ai/grok-imagine-video"];
+    const card = document.createElement("div");
+    card.className = `video-slot-card ${slot.status}`;
+
+    const header = document.createElement("div");
+    header.className = "slot-header";
+    const title = document.createElement("span");
+    title.className = "slot-title";
+    title.textContent = `Slot ${i + 1}`;
+    const st = document.createElement("span");
+    st.className = "slot-state";
+    st.textContent = ({ idle: "Ready", queued: "Queued…", rendering: slot.progressMsg || "Rendering…", ready: "Ready ✓", failed: "Failed" })[slot.status];
+    const cost = document.createElement("span");
+    cost.className = "cost-pill";
+    const ps = m.pricePerSec[slot.resolution] ?? Object.values(m.pricePerSec)[0] ?? 0;
+    cost.textContent = `≈ $${(ps * slot.duration).toFixed(2)}`;
+    header.appendChild(title);
+    header.appendChild(cost);
+    header.appendChild(st);
+    card.appendChild(header);
+
+    // Model picker
+    const modelSel = document.createElement("select");
+    for (const [id, def] of Object.entries(VIDEO_MODELS)) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = `${def.label} — ${id}`;
+      if (id === slot.model) opt.selected = true;
+      modelSel.appendChild(opt);
+    }
+    modelSel.addEventListener("change", () => {
+      slot.model = modelSel.value;
+      const newDef = VIDEO_MODELS[slot.model];
+      if (!newDef.resolutions.includes(slot.resolution)) slot.resolution = newDef.resolutions[0];
+      if (!newDef.aspects.includes(slot.aspect)) slot.aspect = newDef.aspects[0];
+      slot.duration = Math.max(newDef.durMin, Math.min(newDef.durMax, slot.duration));
+      renderVideoSlots();
+      updateVideoCostTotal();
+    });
+    card.appendChild(modelSel);
+
+    // Custom OpenRouter slug row
+    const customRow = document.createElement("div");
+    customRow.className = "row";
+    const customInput = document.createElement("input");
+    customInput.type = "text";
+    customInput.className = "custom-model-input";
+    customInput.placeholder = "or paste any OpenRouter video model slug";
+    customInput.value = VIDEO_MODELS[slot.model] ? "" : slot.model;
+    const customBtn = document.createElement("button");
+    customBtn.type = "button";
+    customBtn.className = "secondary";
+    customBtn.textContent = "Use";
+    customBtn.addEventListener("click", () => {
+      const id = customInput.value.trim();
+      if (!/^[a-z0-9._-]+\/[a-z0-9._:-]+$/i.test(id)) { videoStatus("Enter a valid model id, e.g. x-ai/grok-imagine-video", "error"); return; }
+      // Register unknown model with permissive defaults so the UI works
+      if (!VIDEO_MODELS[id]) {
+        VIDEO_MODELS[id] = { label: id, durMin: 1, durMax: 15, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "720p": 0.10, "1080p": 0.10 } };
+      }
+      slot.model = id;
+      renderVideoSlots();
+    });
+    customRow.appendChild(customInput);
+    customRow.appendChild(customBtn);
+    card.appendChild(customRow);
+
+    // Controls grid: duration / resolution / aspect
+    const controls = document.createElement("div");
+    controls.className = "slot-controls";
+
+    const durLbl = document.createElement("label");
+    durLbl.innerHTML = `Duration <span class="muted" style="font-size:10px;">(${m.durMin}–${m.durMax}s)</span>`;
+    const durIn = document.createElement("input");
+    durIn.type = "number"; durIn.min = m.durMin; durIn.max = m.durMax; durIn.step = "1"; durIn.value = slot.duration;
+    durIn.addEventListener("input", () => {
+      const v = Math.max(m.durMin, Math.min(m.durMax, parseInt(durIn.value, 10) || m.durDefault));
+      slot.duration = v;
+      const newCost = (m.pricePerSec[slot.resolution] ?? 0) * v;
+      cost.textContent = `≈ $${newCost.toFixed(2)}`;
+      updateVideoCostTotal();
+    });
+    durLbl.appendChild(durIn);
+    controls.appendChild(durLbl);
+
+    const resLbl = document.createElement("label");
+    resLbl.textContent = "Resolution";
+    const resSel = document.createElement("select");
+    for (const r of m.resolutions) {
+      const o = document.createElement("option"); o.value = r; o.textContent = r; if (r === slot.resolution) o.selected = true; resSel.appendChild(o);
+    }
+    resSel.addEventListener("change", () => { slot.resolution = resSel.value; renderVideoSlots(); updateVideoCostTotal(); });
+    resLbl.appendChild(resSel);
+    controls.appendChild(resLbl);
+
+    const aspLbl = document.createElement("label");
+    aspLbl.textContent = "Aspect";
+    const aspSel = document.createElement("select");
+    for (const a of m.aspects) {
+      const o = document.createElement("option"); o.value = a; o.textContent = a; if (a === slot.aspect) o.selected = true; aspSel.appendChild(o);
+    }
+    aspSel.addEventListener("change", () => { slot.aspect = aspSel.value; });
+    aspLbl.appendChild(aspSel);
+    controls.appendChild(aspLbl);
+
+    if (m.audio) {
+      const audLbl = document.createElement("label");
+      audLbl.innerHTML = "Audio<span class='muted' style='font-size:10px;'>synced</span>";
+      const audVal = document.createElement("div");
+      audVal.style.fontSize = "11px"; audVal.style.color = "#2563eb"; audVal.textContent = "✓ supported";
+      audLbl.appendChild(audVal);
+      controls.appendChild(audLbl);
+    }
+    card.appendChild(controls);
+
+    // Per-slot prompt (defaults to master)
+    const ta = document.createElement("textarea");
+    ta.value = slot.prompt || $("vp-master").value;
+    ta.placeholder = "Slot prompt (defaults to master). Edit per-slot if needed.";
+    ta.addEventListener("input", () => { slot.prompt = ta.value; refreshVideoGenerateAll(); });
+    card.appendChild(ta);
+
+    // Actions row
+    const actions = document.createElement("div");
+    actions.className = "row";
+    const genBtn = document.createElement("button");
+    genBtn.type = "button";
+    genBtn.className = "primary";
+    genBtn.disabled = !video.sourceUrl || !state.token || state.providers.length === 0;
+    genBtn.textContent = slot.result ? "Re-generate" : "Generate";
+    genBtn.addEventListener("click", () => generateVideoSlot(i));
+    actions.appendChild(genBtn);
+
+    if (slot.result) {
+      const dl = document.createElement("button");
+      dl.type = "button"; dl.className = "secondary"; dl.textContent = "Download";
+      dl.addEventListener("click", () => downloadVideoSlot(i));
+      actions.appendChild(dl);
+      const sv = document.createElement("button");
+      sv.type = "button"; sv.className = "secondary"; sv.textContent = slot.saved ? "Save again" : "Save to Library";
+      sv.addEventListener("click", () => saveVideoSlot(i));
+      actions.appendChild(sv);
+    }
+    if (slot.status === "rendering" || slot.status === "queued") {
+      const cancel = document.createElement("button");
+      cancel.type = "button"; cancel.className = "secondary"; cancel.textContent = "Cancel";
+      cancel.addEventListener("click", () => { slot.pollAbort = true; slot.status = "idle"; renderVideoSlots(); });
+      actions.appendChild(cancel);
+    }
+    card.appendChild(actions);
+
+    if (slot.progressMsg && (slot.status === "rendering" || slot.status === "queued")) {
+      const p = document.createElement("div");
+      p.className = "video-progress";
+      p.textContent = slot.progressMsg;
+      card.appendChild(p);
+    }
+
+    if (slot.result?.video_url) {
+      const v = document.createElement("video");
+      v.src = slot.result.video_url;
+      v.controls = true;
+      v.loop = true;
+      card.appendChild(v);
+      const meta = document.createElement("div");
+      meta.className = "shot-meta muted";
+      meta.style.fontSize = "11px"; meta.style.marginTop = "4px";
+      meta.textContent = `${slot.result.provider_name || ""} · ${slot.result.model_name || slot.model} · ${slot.result.duration_s || slot.duration}s`;
+      card.appendChild(meta);
+    }
+
+    root.appendChild(card);
+  });
+}
+
+async function generateVideoSlot(i) {
+  const slot = video.slots[i];
+  if (!slot) return;
+  if (!video.sourceUrl) { videoStatus("Add a source image first.", "error"); return; }
+  if (!video.sessionId) newVideoSession();
+  const prompt = (slot.prompt || $("vp-master").value || "").trim();
+  if (!prompt) { videoStatus(`Slot ${i + 1} needs a prompt.`, "error"); return; }
+  const providerId = $("provider").value || null;
+  slot.status = "queued";
+  slot.progressMsg = "Submitting job…";
+  slot.pollAbort = false;
+  renderVideoSlots();
+  try {
+    const data = await api("imagekit-video-generate", {
+      provider_id: providerId,
+      model: slot.model,
+      prompt,
+      image_url: video.sourceUrl,
+      duration: slot.duration,
+      resolution: slot.resolution,
+      aspect_ratio: slot.aspect,
+    });
+    if (data.error) throw new Error(data.error);
+    // Two possible response shapes:
+    //   { job_id }                                  — async, requires polling
+    //   { video_url, mime_type, ... }               — sync, finished already
+    if (data.video_url) {
+      slot.result = data;
+      slot.status = "ready";
+      slot.progressMsg = "";
+      videoStatus(`Slot ${i + 1} ready.`, "success");
+    } else if (data.job_id) {
+      slot.jobId = data.job_id;
+      slot.status = "rendering";
+      slot.progressMsg = "Rendering — this can take several minutes…";
+      await pollVideoJob(i);
+    } else {
+      throw new Error("Backend returned no job_id or video_url.");
+    }
+  } catch (e) {
+    slot.status = "failed";
+    slot.progressMsg = e.message || "Generation failed";
+    videoStatus(`Slot ${i + 1} failed: ${e.message}`, "error");
+  } finally {
+    renderVideoSlots();
+  }
+}
+
+async function pollVideoJob(i) {
+  const slot = video.slots[i];
+  const started = Date.now();
+  const MAX_MS = 12 * 60 * 1000; // 12 minutes
+  while (!slot.pollAbort) {
+    await new Promise((r) => setTimeout(r, 5000));
+    if (slot.pollAbort) return;
+    if (Date.now() - started > MAX_MS) {
+      slot.status = "failed";
+      slot.progressMsg = "Timed out after 12 min. Check ReadyCode dashboard.";
+      return;
+    }
+    try {
+      const data = await api("imagekit-video-status", { job_id: slot.jobId });
+      const st = (data?.status || "").toLowerCase();
+      if (data?.progress) slot.progressMsg = `Rendering — ${data.progress}%`;
+      else if (data?.message) slot.progressMsg = data.message;
+      renderVideoSlots();
+      if (st === "succeeded" || st === "completed" || data?.video_url) {
+        slot.result = data;
+        slot.status = "ready";
+        slot.progressMsg = "";
+        renderVideoSlots();
+        videoStatus(`Slot ${i + 1} ready.`, "success");
+        return;
+      }
+      if (st === "failed" || st === "error") {
+        slot.status = "failed";
+        slot.progressMsg = data?.error || data?.message || "Render failed";
+        return;
+      }
+    } catch (e) {
+      slot.progressMsg = `Polling: ${e.message}`;
+    }
+  }
+}
+
+async function downloadVideoSlot(i) {
+  const slot = video.slots[i];
+  if (!slot?.result?.video_url) return;
+  try {
+    const res = await fetch(slot.result.video_url);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const slug = (video.albumName || "i2v").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40);
+    a.download = `${slug}-slot${i + 1}.mp4`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch (e) {
+    videoStatus(`Download failed: ${e.message}`, "error");
+  }
+}
+
+async function saveVideoSlot(i) {
+  const slot = video.slots[i];
+  if (!slot?.result?.video_url) return;
+  videoStatus(`Saving slot ${i + 1} to library…`, "info");
+  try {
+    await api("imagekit-save", {
+      video_url: slot.result.video_url,
+      mime_type: slot.result.mime_type || "video/mp4",
+      kind: "video",
+      album: video.albumName,
+      session_id: video.sessionId,
+      source_metadata: {
+        prompt: slot.prompt || $("vp-master").value,
+        model: slot.model,
+        duration_s: slot.duration,
+        resolution: slot.resolution,
+        aspect_ratio: slot.aspect,
+        i2v_album: video.albumName,
+        i2v_session_id: video.sessionId,
+        source_urls: [video.sourceUrl].filter((s) => s && !s.startsWith("data:")),
+      },
+    });
+    slot.saved = true;
+    renderVideoSlots();
+    videoStatus(`Slot ${i + 1} saved ✓`, "success");
+  } catch (e) {
+    videoStatus(`Save failed: ${e.message}`, "error");
+  }
+}
+
+// --- video tab wiring ---
+$("video-load-url").addEventListener("click", () => {
+  const v = $("video-source-url").value.trim();
+  if (!v) return;
+  videoSetSource({ url: v, dataUrl: v });
+});
+$("video-source-file").addEventListener("change", (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => videoSetSource({ url: reader.result, dataUrl: reader.result });
+  reader.readAsDataURL(f);
+});
+$("video-grab-tab").addEventListener("click", async () => {
+  try {
+    const tab = await chrome.tabs.query({ active: true, currentWindow: true });
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab[0].windowId, { format: "png" });
+    videoSetSource({ url: dataUrl, dataUrl });
+  } catch (e) { videoStatus(`Couldn't capture tab: ${e.message}`, "error"); }
+});
+$("video-pick-lib").addEventListener("click", () => openLibPicker("video-source"));
+
+["vp-subject","vp-motion","vp-camera","vp-env","vp-style","vp-timing","vp-audio"].forEach((id) => {
+  $(id).addEventListener("input", () => { /* user can hit Compose to flush */ });
+});
+$("vp-master").addEventListener("input", refreshVideoGenerateAll);
+
+$("vp-compose").addEventListener("click", () => {
+  const composed = composeMasterFromFields();
+  if (!composed) { videoStatus("Fill at least one field above.", "error"); return; }
+  $("vp-master").value = composed;
+  refreshVideoGenerateAll();
+  videoStatus("Master prompt composed.", "success");
+});
+
+$("vp-polish").addEventListener("click", async () => {
+  const userPrompt = ($("vp-master").value || composeMasterFromFields()).trim();
+  if (!userPrompt) { videoStatus("Compose or type a master prompt first.", "error"); return; }
+  const providerId = $("provider").value || null;
+  const longestDur = Math.max(...video.slots.map((s) => s.duration));
+  const audioCapable = video.slots.some((s) => VIDEO_MODELS[s.model]?.audio);
+  $("vp-polish").disabled = true;
+  videoStatus("Polishing with your AI…", "info");
+  try {
+    const sys = `${VIDEO_PROMPT_SYSTEM}\nTarget duration: ${longestDur}s.\nAudio-capable slot present: ${audioCapable ? "yes" : "no"}.`;
+    const data = await api("imagekit-enhance-prompt", {
+      provider_id: providerId,
+      system: sys,
+      prompt: userPrompt,
+      style: "video_prompt",
+    });
+    const out = (data?.enhanced_prompt || data?.text || "").trim();
+    if (!out) throw new Error("No polished prompt returned.");
+    $("vp-master").value = out;
+    refreshVideoGenerateAll();
+    videoStatus("Master prompt polished — Apply to all slots when ready.", "success");
+  } catch (e) {
+    videoStatus(`Couldn't polish: ${e.message}`, "error");
+  } finally {
+    $("vp-polish").disabled = false;
+  }
+});
+
+$("vp-apply-all").addEventListener("click", () => {
+  const master = $("vp-master").value.trim();
+  if (!master) { videoStatus("Type or compose a master prompt first.", "error"); return; }
+  for (const slot of video.slots) slot.prompt = master;
+  renderVideoSlots();
+  refreshVideoGenerateAll();
+  videoStatus("Master prompt applied to all 3 slots.", "success");
+});
+
+$("vp-generate-all").addEventListener("click", async () => {
+  if (!video.sessionId) newVideoSession();
+  const master = $("vp-master").value.trim();
+  if (master) for (const s of video.slots) if (!s.prompt) s.prompt = master;
+  renderVideoSlots();
+  // Fire all 3 in parallel
+  await Promise.all(video.slots.map((_, i) => generateVideoSlot(i)));
+});
+
+// --- Send-to-Video helpers (exposed for cross-tab buttons) ---
+function sendImageToVideo({ url, dataUrl, prompt }) {
+  videoSetSource({ url: url || dataUrl, dataUrl: dataUrl || url });
+  if (prompt) {
+    $("vp-master").value = prompt;
+    for (const s of video.slots) s.prompt = prompt;
+  }
+  newVideoSession();
+  renderVideoSlots();
+  activateTab("video");
+  videoStatus("Source loaded. Adjust slots and hit Generate all 3.", "success");
+}
+
+// Respin "→ Video" button
+$("send-to-video").addEventListener("click", () => {
+  if (!state.result) return;
+  const dataUrl = `data:${state.result.mime_type};base64,${state.result.image_base64}`;
+  sendImageToVideo({ url: dataUrl, dataUrl, prompt: state.lastPrompt || "" });
+});
+
+// UGC bulk "→ Video (selected)" — loads the first selected shot as source
+document.querySelectorAll(".ugc-send-video").forEach((b) =>
+  b.addEventListener("click", () => {
+    const sel = ugcSelectedShots();
+    if (!sel.length) { ugcStatus("Select at least one shot first.", "error"); return; }
+    const first = sel[0];
+    const shot = first.s;
+    const dataUrl = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
+    sendImageToVideo({ url: dataUrl, dataUrl, prompt: shot.prompt });
+  })
+);
+
+// Patch UGC chain rendering to also add a per-shot "→ Video" button
+// (we wrap the original renderUgcChain so existing behaviour stays intact)
+const _origRenderUgcChain = renderUgcChain;
+renderUgcChain = function patchedRenderUgcChain() {
+  _origRenderUgcChain();
+  document.querySelectorAll("#ugc-chain .ugc-shot-card").forEach((card, i) => {
+    const shot = ugc.shots[i];
+    if (!shot?.result) return;
+    const actions = card.querySelector(".row");
+    if (!actions || actions.querySelector(".ugc-shot-video-btn")) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secondary ugc-shot-video-btn";
+    btn.textContent = "→ Video";
+    btn.title = "Animate this shot on the Image → Video tab";
+    btn.addEventListener("click", () => {
+      const dataUrl = `data:${shot.result.mime_type};base64,${shot.result.image_base64}`;
+      sendImageToVideo({ url: dataUrl, dataUrl, prompt: shot.prompt });
+    });
+    actions.appendChild(btn);
+  });
+};
+
+// Initial render
+renderVideoSlots();
+refreshVideoGenerateAll();
