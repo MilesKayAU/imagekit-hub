@@ -23,12 +23,6 @@ function Index() {
         <br />
         <span className="text-red-500">Via Lovable</span>
       </h1>
-      <p className="max-w-2xl text-xl font-semibold text-zinc-300 sm:text-2xl">
-        This is a placeholder project. Its only purpose is to host the source
-        code for the{" "}
-        <span className="text-white">ReadyCode ImageKit Chrome extension</span>{" "}
-        and sync it to GitHub.
-      </p>
       <p className="max-w-2xl text-base text-zinc-500">
         If you accidentally clicked Publish, open the Publish dialog (top right)
         and click <span className="font-bold text-white">Unpublish</span>{" "}
