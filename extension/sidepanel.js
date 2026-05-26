@@ -1723,7 +1723,14 @@ async function pollVideoJob(i) {
       return;
     }
     try {
-      const data = await api("imagekit-video-status", { job_id: slot.jobId });
+      const data = await api("imagekit-video-status", {
+        job_id: slot.jobId,
+        provider: slot.providerName || undefined,
+        provider_id: slot.providerJobId || undefined,
+        model_slug: slot.modelSlug || slot.model,
+        status_url: slot.statusUrl || undefined,
+        response_url: slot.responseUrl || undefined,
+      });
       const st = (data?.status || "").toLowerCase();
       if (st === "queued" && data?.queue_position != null) {
         slot.progressMsg = `In queue (#${data.queue_position})…`;

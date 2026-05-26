@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ReadyCode ImageKit",
-  "version": "1.0.16",
+  "version": "1.0.19",
   "description": "Free BYOK AI image studio. Generate from a prompt or respin any image with your own AI provider key. Saves to your ReadyCode library.",
   "permissions": [
     "storage",
