@@ -1044,7 +1044,7 @@ function renderUgcChain() {
       const approveBtn = document.createElement("button");
       approveBtn.type = "button";
       approveBtn.className = "secondary";
-      approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & continue";
+      approveBtn.textContent = i === ugc.shots.length - 1 ? "Approve" : "Approve & unlock next";
       approveBtn.addEventListener("click", () => approveUgcShot(i));
       actions.appendChild(approveBtn);
 
