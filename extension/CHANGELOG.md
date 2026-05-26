@@ -1,5 +1,12 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.24 — True video understanding for the Reference Video flow (server-backed)
+- The Reference Video analyzer now calls a new ReadyCode edge function `imagekit-analyze-video` for YouTube + Shorts URLs. The server forwards the URL to Google Gemini with native video ingestion, so the storyboard reflects actual pacing, shot language, captions and audio cues instead of just the title + uploader.
+- Graceful fallback: if the new endpoint isn't deployed yet, returns `{ fallback: "text_only" }`, or fails for any reason, the extension silently drops back to the existing metadata-only rewriter. TikTok and unknown platforms always use the rewriter path (Gemini doesn't ingest TikTok URLs).
+- The 8–15s duration contract, clamp, and retry behaviour are unchanged — they run on the analyzer's output too.
+- Annotation panel now records `__meta.source = "gemini-video" | "text-rewriter"` so you can tell which path produced the storyboard.
+- No new permissions, no UI changes. Requires the ReadyCode lovable project to ship the `imagekit-analyze-video` edge function (see plan).
+
 ## 1.0.23 — Reference Video → Product Ad (8–15s)
 - New block on the Video tab: paste a YouTube / TikTok / Shorts URL, pick a style mode (Safe Original / Closer Match / Prompt Only), and the extension fetches public oEmbed metadata + asks your AI provider to condense the reference into a brand-safe 8–15s storyboard.
 - Hard duration rule enforced client-side: total 8–15s, each slot 3–7s. If the model returns out-of-range, the rewriter is re-called once with a "fit 8–15s" directive; if still off, the storyboard is auto-trimmed and a yellow warning is surfaced.
