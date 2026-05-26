@@ -1674,6 +1674,7 @@ async function generateVideoSlot(i) {
   const prompt = (slot.prompt || $("vp-master").value || "").trim();
   if (!prompt) { videoStatus(`Slot ${i + 1} needs a prompt.`, "error"); return; }
   const providerId = $("provider").value || null;
+  slot.requestProviderId = providerId;
   slot.status = "queued";
   slot.progressMsg = "Submitting job…";
   slot.pollAbort = false;
@@ -1733,14 +1734,16 @@ async function pollVideoJob(i) {
       return;
     }
     try {
-      const data = await api("imagekit-video-status", {
+      const selectedProviderId = $("provider")?.value || null;
+      const payload = {
         job_id: slot.jobId,
-        provider: slot.providerName || undefined,
-        provider_id: slot.providerJobId || undefined,
-        model_slug: slot.modelSlug || slot.model,
-        status_url: slot.statusUrl || undefined,
-        response_url: slot.responseUrl || undefined,
-      });
+        provider_id: slot.providerJobId || slot.requestProviderId || selectedProviderId || undefined,
+        model_slug: slot.modelSlug || slot.model || undefined,
+      };
+      if (slot.providerName || slot.model) payload.provider = slot.providerName || providerForSlug(slot.model);
+      if (slot.statusUrl) payload.status_url = slot.statusUrl;
+      if (slot.responseUrl) payload.response_url = slot.responseUrl;
+      const data = await api("imagekit-video-status", payload);
       const st = (data?.status || "").toLowerCase();
       if (st === "queued" && data?.queue_position != null) {
         slot.progressMsg = `In queue (#${data.queue_position})…`;
