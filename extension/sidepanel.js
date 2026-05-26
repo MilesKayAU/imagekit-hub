@@ -224,6 +224,60 @@ document.querySelectorAll(".chip").forEach((c) => {
   });
 });
 
+// --- prompt enhancement ---
+const PROMPT_ENGINEER_SYSTEM = `You are a senior prompt engineer for AI image generation models (Nano Banana, GPT-Image, Flux, Imagen, Ideogram). Rewrite the user's rough prompt into ONE production-ready image prompt.
+Rules:
+- Preserve the user's intent, subject, and any specific brand/product details exactly.
+- Add concrete visual detail: lighting, camera/lens, composition, mood, materials, background, color palette.
+- Keep it under ~90 words. No preamble, no bullet lists, no quotes — return only the prompt text.
+- Do not invent text/logos that weren't requested.`;
+
+async function enhancePromptOnce() {
+  const userPrompt = $("prompt").value.trim();
+  const styleText = STYLE_PROMPTS[state.style] || "";
+  const providerId = $("provider").value || null;
+  if (!userPrompt && !styleText) {
+    setStatus("Type a prompt first, then enhance.", "error");
+    return;
+  }
+  const combined = [styleText, userPrompt].filter(Boolean).join(" ");
+  $("enhance-prompt").disabled = true;
+  $("re-enhance").disabled = true;
+  setStatus("Enhancing prompt with your AI…", "info");
+  try {
+    const data = await api("imagekit-enhance-prompt", {
+      provider_id: providerId,
+      system: PROMPT_ENGINEER_SYSTEM,
+      prompt: combined,
+      style: state.style,
+    });
+    const out = (data?.enhanced_prompt || data?.text || "").trim();
+    if (!out) throw new Error("No enhanced prompt returned.");
+    $("enhanced-prompt").value = out;
+    $("enhanced-block").classList.remove("hidden");
+    setStatus("", "info");
+  } catch (e) {
+    setStatus(e.message || "Couldn't enhance prompt", "error");
+  } finally {
+    $("enhance-prompt").disabled = false;
+    $("re-enhance").disabled = false;
+  }
+}
+
+$("enhance-prompt").addEventListener("click", enhancePromptOnce);
+$("re-enhance").addEventListener("click", enhancePromptOnce);
+$("use-enhanced").addEventListener("click", () => {
+  const v = $("enhanced-prompt").value.trim();
+  if (!v) return;
+  $("prompt").value = v;
+  $("enhanced-block").classList.add("hidden");
+  setStatus("Enhanced prompt applied. Hit Generate when ready.", "success");
+});
+$("discard-enhanced").addEventListener("click", () => {
+  $("enhanced-block").classList.add("hidden");
+  $("enhanced-prompt").value = "";
+});
+
 // --- generate ---
 $("generate").addEventListener("click", async () => {
   $("generate").disabled = true;
