@@ -30,9 +30,28 @@ function PrivacyPage() {
         <p className="mt-4 text-muted-foreground">
           ReadyCode ImageKit is a free, bring-your-own-key (BYOK) AI image studio that lives in the browser side panel. This page explains, in plain English, what the extension does with your data.
         </p>
+        <p className="mt-2 text-sm text-muted-foreground">Last updated: 26 May 2026.</p>
       </header>
 
       <div className="prose-styles mt-12 space-y-10 text-foreground">
+        <Section title="Single purpose">
+          <p>
+            ReadyCode ImageKit has one purpose: let you generate and respin AI images from the active tab using your own AI provider key, and save those images to your private ReadyCode library. Every permission and every line of code in this extension serves that single purpose.
+          </p>
+        </Section>
+
+        <Section title="Chrome Web Store user-data certification">
+          <p>Per the Chrome Web Store Developer Program Policies and the Limited Use requirements, we certify:</p>
+          <ul>
+            <li>We <strong>do not sell</strong> user data to third parties.</li>
+            <li>We <strong>do not transfer</strong> user data to third parties for purposes unrelated to the extension's single purpose.</li>
+            <li>We <strong>do not use or transfer</strong> user data for advertising, including retargeting, personalised or interest-based advertising.</li>
+            <li>We <strong>do not use or transfer</strong> user data to determine creditworthiness or for lending purposes.</li>
+            <li>We <strong>do not use</strong> user data, prompts, or generated images to train any AI model.</li>
+            <li>All transfers of user data are encrypted in transit (HTTPS/TLS).</li>
+          </ul>
+        </Section>
+
         <Section title="What ImageKit reads">
           <p>ImageKit only reads data when <strong>you take an action</strong> inside the side panel or context menu:</p>
           <ul>
@@ -42,6 +61,39 @@ function PrivacyPage() {
             <li>when you sign in to ReadyCode in another tab — a short-lived access token used to authenticate calls to ReadyCode.</li>
           </ul>
           <p>ImageKit does <strong>not</strong> read pages in the background, follow you around the web, or capture anything before you act.</p>
+        </Section>
+
+        <Section title="Data categories collected">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-foreground">
+                  <th className="py-2 pr-4 font-semibold">Category</th>
+                  <th className="py-2 pr-4 font-semibold">Collected?</th>
+                  <th className="py-2 font-semibold">What & why</th>
+                </tr>
+              </thead>
+              <tbody className="text-muted-foreground">
+                {[
+                  ["Personally identifiable info", "No", "None."],
+                  ["Health information", "No", "—"],
+                  ["Financial / payment info", "No", "Your AI provider bills you directly; we never see card data."],
+                  ["Authentication info", "Yes", "Short-lived ReadyCode session token in chrome.storage.local, used only to authenticate calls to ReadyCode."],
+                  ["Personal communications", "No", "—"],
+                  ["Location", "No", "—"],
+                  ["Web history", "No", "—"],
+                  ["User activity", "No", "No clicks, scrolls, or pageviews logged."],
+                  ["Website content", "Only on explicit action", "The one screenshot or image URL you select via Grab visible tab or the right-click action."],
+                ].map(([cat, col, desc]) => (
+                  <tr key={cat} className="border-b border-border/60 align-top">
+                    <td className="py-2 pr-4 text-foreground">{cat}</td>
+                    <td className="py-2 pr-4">{col}</td>
+                    <td className="py-2">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
 
         <Section title="What ImageKit sends">
@@ -68,12 +120,21 @@ function PrivacyPage() {
           </ul>
         </Section>
 
+        <Section title="Data retention and deletion">
+          <ul>
+            <li><strong>Session tokens</strong> clear when you sign out at readycode.ai, remove the extension, or clear the extension's local storage.</li>
+            <li><strong>Saved images</strong> remain in your private library until you delete them at <a href="https://readycode.ai/imagekit/library" className="text-primary underline-offset-4 hover:underline">readycode.ai/imagekit/library</a>.</li>
+            <li><strong>Account deletion</strong>: email <a href="mailto:privacy@readycode.ai" className="text-primary underline-offset-4 hover:underline">privacy@readycode.ai</a> and we will delete your account, library, and any associated BYOK records within 30 days.</li>
+          </ul>
+        </Section>
+
         <Section title="What ImageKit will not do">
           <ul>
             <li>It will not run on a page until you click an action.</li>
             <li>It will not capture or transmit images you did not explicitly select.</li>
             <li>It will not sell, share, or use your prompts or images to train any model.</li>
             <li>It will not bypass the per-provider rate limits or terms of your BYOK provider.</li>
+            <li>It will not request <code>&lt;all_urls&gt;</code>, <code>webRequest</code>, <code>notifications</code>, <code>alarms</code>, or <code>cookies</code>.</li>
           </ul>
         </Section>
 
@@ -87,7 +148,6 @@ function PrivacyPage() {
             <li><strong>tabs</strong> — open the ReadyCode library tab after you save an image.</li>
             <li><strong>host permissions</strong> for <code>readycode.ai</code>, <code>*.readycode.ai</code>, and the ReadyCode backend — required to call the edge function that brokers the BYOK request and to read your session.</li>
           </ul>
-          <p>ImageKit does <strong>not</strong> request <code>&lt;all_urls&gt;</code>, <code>webRequest</code>, <code>notifications</code>, <code>alarms</code>, or <code>cookies</code>.</p>
         </Section>
 
         <Section title="Account requirement">
