@@ -1706,6 +1706,39 @@ function renderVideoSlots() {
     ta.addEventListener("input", () => { slot.prompt = ta.value; refreshVideoGenerateAll(); });
     card.appendChild(ta);
 
+    // "Stay faithful to source image" toggle — locks the first frame to the
+    // uploaded image. Especially important for Grok Imagine.
+    const faithRow = document.createElement("label");
+    faithRow.className = "row";
+    faithRow.style.cssText = "display:flex;align-items:flex-start;gap:6px;margin-top:6px;font-size:11px;color:#444;cursor:pointer;";
+    const faithCb = document.createElement("input");
+    faithCb.type = "checkbox";
+    faithCb.checked = !!slot.faithful;
+    faithCb.style.cssText = "margin-top:2px;flex:0 0 auto;";
+    faithCb.addEventListener("change", () => { slot.faithful = faithCb.checked; });
+    const faithText = document.createElement("span");
+    faithText.innerHTML = "<strong>Stay faithful to source image</strong> — prepends a lock-frame instruction so the model animates your exact image instead of redesigning it. Recommended for Grok Imagine.";
+    faithRow.appendChild(faithCb);
+    faithRow.appendChild(faithText);
+    card.appendChild(faithRow);
+
+    // Source-image thumbnail proof: shows which image is being submitted with
+    // this slot, so it's visually obvious the right reference is attached.
+    if (video.sourceUrl) {
+      const srcRow = document.createElement("div");
+      srcRow.className = "row";
+      srcRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10px;color:#666;";
+      const thumb = document.createElement("img");
+      thumb.src = video.sourceUrl;
+      thumb.alt = "Source reference";
+      thumb.style.cssText = "width:42px;height:42px;object-fit:cover;border-radius:4px;border:1px solid #d4d4d4;flex:0 0 auto;";
+      const lbl = document.createElement("span");
+      lbl.textContent = "Source image sent to model";
+      srcRow.appendChild(thumb);
+      srcRow.appendChild(lbl);
+      card.appendChild(srcRow);
+    }
+
     // Actions row
     const actions = document.createElement("div");
     actions.className = "row";
