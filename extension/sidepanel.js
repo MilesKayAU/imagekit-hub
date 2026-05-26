@@ -299,6 +299,7 @@ function updateModelOverrideUI() {
     row.classList.add("hidden");
   }
   renderModelList(); // re-highlight active
+  if (typeof updateUgcModelChips === "function") updateUgcModelChips();
 }
 
 $("model-override-clear").addEventListener("click", () => {
