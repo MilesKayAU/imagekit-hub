@@ -1369,6 +1369,12 @@ function providerForSlug(slug) {
   return /^fal-ai\//i.test(slug) ? "fal" : "openrouter";
 }
 
+function fallbackProviderIdForVideoSlot(slot) {
+  const wanted = slot?.providerName || providerForSlug(slot?.model || slot?.modelSlug || "");
+  if (wanted === "openrouter") return state.providers.find((p) => isOpenRouterProvider(p))?.id || null;
+  return state.providers.find((p) => !isOpenRouterProvider(p))?.id || null;
+}
+
 const VIDEO_MODELS = {
   // ── fal.ai ────────────────────────────────────────────────────────────────
   "fal-ai/veo3/image-to-video":                       { label: "Veo 3",            provider: "fal", durMin: 8, durMax: 8,  durDefault: 8, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],         audio: true,  pricePerSec: { "720p": 0.50, "1080p": 0.75 } },
@@ -1734,10 +1740,9 @@ async function pollVideoJob(i) {
       return;
     }
     try {
-      const selectedProviderId = $("provider")?.value || null;
       const payload = {
         job_id: slot.jobId,
-        provider_id: slot.providerJobId || slot.requestProviderId || selectedProviderId || undefined,
+        provider_id: slot.providerJobId || slot.requestProviderId || fallbackProviderIdForVideoSlot(slot) || undefined,
         model_slug: slot.modelSlug || slot.model || undefined,
       };
       if (slot.providerName || slot.model) payload.provider = slot.providerName || providerForSlug(slot.model);
