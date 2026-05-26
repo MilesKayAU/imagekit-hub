@@ -1476,7 +1476,7 @@ function renderVideoSlots() {
   const root = $("video-slots");
   root.innerHTML = "";
   video.slots.forEach((slot, i) => {
-    const m = VIDEO_MODELS[slot.model] || VIDEO_MODELS["x-ai/grok-imagine-video"];
+    const m = VIDEO_MODELS[slot.model] || VIDEO_MODELS["fal-ai/veo3/image-to-video"];
     const card = document.createElement("div");
     card.className = `video-slot-card ${slot.status}`;
 
@@ -1484,7 +1484,8 @@ function renderVideoSlots() {
     header.className = "slot-header";
     const title = document.createElement("span");
     title.className = "slot-title";
-    title.textContent = `Slot ${i + 1}`;
+    const slotProvider = m.provider || providerForSlug(slot.model);
+    title.innerHTML = `Slot ${i + 1} <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${slotProvider === "fal" ? "#dbeafe" : "#fce7f3"};color:${slotProvider === "fal" ? "#1e40af" : "#9d174d"};font-weight:600;text-transform:uppercase;letter-spacing:0.3px;">${slotProvider === "fal" ? "fal" : "OR"}</span>`;
     const st = document.createElement("span");
     st.className = "slot-state";
     st.textContent = ({ idle: "Ready", queued: "Queued…", rendering: slot.progressMsg || "Rendering…", ready: "Ready ✓", failed: "Failed" })[slot.status];
@@ -1497,15 +1498,19 @@ function renderVideoSlots() {
     header.appendChild(st);
     card.appendChild(header);
 
-    // Model picker
+    // Model picker — grouped by provider so the source key is obvious
     const modelSel = document.createElement("select");
+    const falGroup = document.createElement("optgroup"); falGroup.label = "fal.ai (uses fal BYOK key)";
+    const orGroup  = document.createElement("optgroup"); orGroup.label  = "OpenRouter (uses OpenRouter BYOK key)";
     for (const [id, def] of Object.entries(VIDEO_MODELS)) {
       const opt = document.createElement("option");
       opt.value = id;
       opt.textContent = `${def.label} — ${id}`;
       if (id === slot.model) opt.selected = true;
-      modelSel.appendChild(opt);
+      (def.provider === "fal" ? falGroup : orGroup).appendChild(opt);
     }
+    modelSel.appendChild(falGroup);
+    modelSel.appendChild(orGroup);
     modelSel.addEventListener("change", () => {
       slot.model = modelSel.value;
       const newDef = VIDEO_MODELS[slot.model];
@@ -1517,13 +1522,13 @@ function renderVideoSlots() {
     });
     card.appendChild(modelSel);
 
-    // Custom OpenRouter slug row
+    // Custom slug row — accepts either fal.ai or OpenRouter format
     const customRow = document.createElement("div");
     customRow.className = "row";
     const customInput = document.createElement("input");
     customInput.type = "text";
     customInput.className = "custom-model-input";
-    customInput.placeholder = "or paste any OpenRouter video model slug";
+    customInput.placeholder = "or paste a slug — fal-ai/… or org/model";
     customInput.value = VIDEO_MODELS[slot.model] ? "" : slot.model;
     const customBtn = document.createElement("button");
     customBtn.type = "button";
@@ -1531,10 +1536,10 @@ function renderVideoSlots() {
     customBtn.textContent = "Use";
     customBtn.addEventListener("click", () => {
       const id = customInput.value.trim();
-      if (!/^[a-z0-9._-]+\/[a-z0-9._:-]+$/i.test(id)) { videoStatus("Enter a valid model id, e.g. x-ai/grok-imagine-video", "error"); return; }
+      if (!/^[a-z0-9._-]+\/[a-z0-9._/:-]+$/i.test(id)) { videoStatus("Enter a valid slug, e.g. fal-ai/veo3/image-to-video or x-ai/grok-imagine-video", "error"); return; }
       // Register unknown model with permissive defaults so the UI works
       if (!VIDEO_MODELS[id]) {
-        VIDEO_MODELS[id] = { label: id, durMin: 1, durMax: 15, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "720p": 0.10, "1080p": 0.10 } };
+        VIDEO_MODELS[id] = { label: id, provider: providerForSlug(id), durMin: 1, durMax: 15, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "720p": 0.10, "1080p": 0.10 } };
       }
       slot.model = id;
       renderVideoSlots();
