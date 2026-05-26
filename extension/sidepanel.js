@@ -1441,6 +1441,7 @@ const video = {
       playbackLoading: false,
       saved: false,
       pollAbort: false,
+      faithful: true, // Stay faithful to source image — prepends a lock-frame preamble
     };
   }),
   sessionId: null,
