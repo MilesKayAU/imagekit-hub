@@ -103,6 +103,19 @@
           <button class="chip" data-style="editorial">Editorial</button>
         </div>
         <textarea id="prompt" rows="3" placeholder="Extra direction (optional): e.g. soft morning light, bathroom setting"></textarea>
+        <div class="row" style="margin-top:6px;">
+          <button id="enhance-prompt" class="secondary" type="button" title="Use AI to rewrite your prompt into an optimal image-generation prompt">✨ Enhance with AI</button>
+          <span class="muted" style="font-size:11px;">Optional — rewrites your prompt for better image results.</span>
+        </div>
+        <div id="enhanced-block" class="enhanced-block hidden">
+          <label class="block-label" style="margin-top:10px;">AI-enhanced prompt (editable)</label>
+          <textarea id="enhanced-prompt" rows="4" placeholder="Enhanced prompt will appear here…"></textarea>
+          <div class="row">
+            <button id="use-enhanced" class="primary" type="button">Use this</button>
+            <button id="discard-enhanced" class="secondary" type="button">Discard</button>
+            <button id="re-enhance" class="secondary" type="button" title="Generate another variation">Re-enhance</button>
+          </div>
+        </div>
       </div>
 
       <div class="block">
