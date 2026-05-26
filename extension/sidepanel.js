@@ -1672,16 +1672,22 @@ async function generateVideoSlot(i) {
     const data = await api("imagekit-video-generate", {
       provider_id: providerId,
       model: slot.model,
+      model_slug: slot.model,
       prompt,
       image_url: video.sourceUrl,
-      duration: slot.duration,
+      duration_seconds: slot.duration,
       resolution: slot.resolution,
       aspect_ratio: slot.aspect,
     });
     if (data.error) throw new Error(data.error);
     // Two possible response shapes:
-    //   { job_id }                                  — async, requires polling
+    //   { job_id, provider, provider_id, model_slug, status_url, response_url } — async
     //   { video_url, mime_type, ... }               — sync, finished already
+    slot.providerName  = data.provider || providerForSlug(slot.model);
+    slot.providerJobId = data.provider_id || null;
+    slot.modelSlug     = data.model_slug || slot.model;
+    slot.statusUrl     = data.status_url || null;
+    slot.responseUrl   = data.response_url || null;
     if (data.video_url) {
       slot.result = data;
       slot.status = "ready";
@@ -1690,7 +1696,7 @@ async function generateVideoSlot(i) {
     } else if (data.job_id) {
       slot.jobId = data.job_id;
       slot.status = "rendering";
-      slot.progressMsg = "Rendering — this can take several minutes…";
+      slot.progressMsg = `Submitted to ${slot.providerName} — waiting…`;
       await pollVideoJob(i);
     } else {
       throw new Error("Backend returned no job_id or video_url.");
@@ -1719,10 +1725,21 @@ async function pollVideoJob(i) {
     try {
       const data = await api("imagekit-video-status", { job_id: slot.jobId });
       const st = (data?.status || "").toLowerCase();
-      if (data?.progress) slot.progressMsg = `Rendering — ${data.progress}%`;
-      else if (data?.message) slot.progressMsg = data.message;
+      if (st === "queued" && data?.queue_position != null) {
+        slot.progressMsg = `In queue (#${data.queue_position})…`;
+      } else if (st === "in_progress" && data?.progress != null) {
+        slot.progressMsg = `Rendering — ${data.progress}%`;
+      } else if (data?.progress != null) {
+        slot.progressMsg = `Rendering — ${data.progress}%`;
+      } else if (Array.isArray(data?.logs) && data.logs.length) {
+        slot.progressMsg = String(data.logs[data.logs.length - 1]).slice(0, 120);
+      } else if (data?.message) {
+        slot.progressMsg = data.message;
+      } else if (st === "in_progress") {
+        slot.progressMsg = "Rendering…";
+      }
       renderVideoSlots();
-      if (st === "succeeded" || st === "completed" || data?.video_url) {
+      if (st === "completed" || st === "succeeded" || data?.video_url) {
         slot.result = data;
         slot.status = "ready";
         slot.progressMsg = "";
@@ -1767,11 +1784,14 @@ async function saveVideoSlot(i) {
       video_url: slot.result.video_url,
       mime_type: slot.result.mime_type || "video/mp4",
       kind: "video",
+      duration_seconds: slot.duration,
       album: video.albumName,
       session_id: video.sessionId,
       source_metadata: {
         prompt: slot.prompt || $("vp-master").value,
         model: slot.model,
+        model_slug: slot.modelSlug || slot.model,
+        provider: slot.providerName || providerForSlug(slot.model),
         duration_s: slot.duration,
         resolution: slot.resolution,
         aspect_ratio: slot.aspect,
