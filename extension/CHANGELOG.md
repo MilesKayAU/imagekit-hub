@@ -1,5 +1,9 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.4 — Prompt engineering (BYOK)
+- New **✨ Enhance with AI** button under the prompt field. Sends your rough prompt to your own BYOK provider, rewrites it as a production-grade image-generation prompt (lighting, lens, composition, mood, palette), and shows the result in an **editable** textarea so you can tweak before hitting Generate. "Use this" applies it to the prompt field; "Re-enhance" generates another variation.
+- Requires the ReadyCode edge function `imagekit-enhance-prompt` (text completion via the user's BYOK provider). See the ReadyCode prompt below.
+
 ## 1.0.3 — Refine + Library remix
 - New **Refine** box on every result: type a follow-up instruction ("warmer light, add a wooden tray") and iterate without going back to step 1. Also adds **Use as source** to chain results.
 - New **Pick from Library** button on the source row and **Extra reference images** strip — pull any saved ReadyCode Library image in as the source, or combine it with a generated image (e.g. add an ingredient to a scene) and tell the AI how to merge them.
