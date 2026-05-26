@@ -793,6 +793,27 @@ bootstrap();
 // --- Link dialog ---
 const linkDialog = document.getElementById("link-dialog");
 document.getElementById("link-btn").addEventListener("click", () => linkDialog.showModal());
+
+// Pop out: open the side panel UI in a resizable standalone window so video
+// previews aren't constrained by Chrome's narrow side panel width.
+(() => {
+  const popoutBtn = document.getElementById("popout-btn");
+  if (!popoutBtn) return;
+  const params = new URLSearchParams(location.search);
+  if (params.get("popout") === "1") {
+    popoutBtn.style.display = "none";
+    document.title = "ReadyCode ImageKit";
+    return;
+  }
+  popoutBtn.addEventListener("click", () => {
+    const url = chrome.runtime.getURL("sidepanel.html") + "?popout=1";
+    if (chrome.windows && chrome.windows.create) {
+      chrome.windows.create({ url, type: "popup", width: 1100, height: 900 });
+    } else {
+      window.open(url, "_blank", "width=1100,height=900");
+    }
+  });
+})();
 document.getElementById("link-cancel").addEventListener("click", () => linkDialog.close());
 document.getElementById("link-save").addEventListener("click", async () => {
   const raw = document.getElementById("link-token").value;
