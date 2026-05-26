@@ -1,5 +1,28 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.14 — Image → Video tab
+- **New "Image → Video" tab** with up to **3 parallel model variants** per source image.
+- **Source widget** mirrors Respin/UGC: upload, paste URL, Grab visible tab, Pick from Library. Right-click → *Grab this image* now routes here if the Video tab is the active tab.
+- **Cross-tab "→ Video" buttons:**
+  - Respin output: new **→ Video** button next to Download / Save.
+  - UGC: per-shot **→ Video** button on every ready shot card, plus **→ Video (selected)** in the top + bottom bulk toolbars.
+  - Library: every asset card now has a **→ Video** action alongside *Use as source* / *Add as reference*.
+- **Default model slots** (curated from openrouter.ai/models?output_modalities=video):
+  - Slot 1 — `x-ai/grok-imagine-video` (currently #1 on Arena image-to-video, 1–15s @ 24fps, 480p/720p, 7 aspect ratios, $0.05–0.07/sec).
+  - Slot 2 — `google/veo-3.1-fast` (4–8s, 720p/1080p, native synced audio, $0.10/sec).
+  - Slot 3 — `kwaivgi/kling-v3.0-std` (3–15s, 720p, first/last-frame control, $0.126/sec).
+  - Custom OpenRouter slug field per slot. Built-in catalog also covers Veo 3.1 / Veo 3.1 Lite, Kling v3 Pro, MiniMax Hailuo 2.3, Alibaba Wan 2.6, OpenAI Sora 2 Pro.
+- **Guided prompt editor** based on the Subject → Motion → Camera → Environment → Style → Timing → Audio structure from the [DeeVid Grok Imagine Video review](https://deevid.ai/blog/grok-imagine-video-review). Fill the 7 fields, hit **Compose from fields**, or paste a freeform master prompt.
+- **✨ Polish with AI** rewrites the master via your BYOK text model into a production-ready video prompt: enforces the 7-part structure, inserts an explicit motion verb, and matches pacing language to the longest selected duration. Drops the audio line when no slot supports synced audio.
+- **Per-slot controls:** duration slider clamped to the model's min/max, resolution toggle, aspect ratio chips, live cost estimate (`duration × $/sec`). "Audio supported" badge on Veo / Sora / Wan slots.
+- **Async job handling:** each slot shows queued → rendering → ready, polling `imagekit-video-status` every 5s (12 min timeout) with progress %. Inline `<video>` preview + Download + Save to Library on completion.
+- **Library album grouping:** all 3 variants of one source image share a `session_id` and album name (`I2V · 2026-05-26 14:32`) so the ReadyCode library can fold them together.
+- **Requires the ReadyCode backend** to add:
+  - `imagekit-video-generate` edge function — takes `{ provider_id, model, prompt, image_url, duration, resolution, aspect_ratio }`, returns either `{ video_url, mime_type, … }` (sync) or `{ job_id }` (async).
+  - `imagekit-video-status` edge function — takes `{ job_id }`, returns `{ status, progress?, video_url?, mime_type?, error? }`.
+  - `imagekit-save` extension — accept `video_url` (or `video_base64`) and `mime_type: video/mp4`, persist `album` + `session_id`.
+  - `imagekit-enhance-prompt` extension — accept the new `style: "video_prompt"` mode (already passes a custom `system` prompt, no schema change needed).
+
 ## 1.0.13 — UGC bulk actions & library album
 - **Save / Download stay available after approval.** Previously the buttons disappeared once you clicked Approve. Now every ready shot keeps its Save, Download, and Re-generate buttons (Save shows "Save again" after a successful save).
 - **Toolbars at top + bottom of the chain** with: *Select all*, *Download selected*, *Save selected to library*, *Download all ready*, *Save all ready*. Each shot card has a Select checkbox in its header.

@@ -36,6 +36,7 @@
     <button class="tab" data-tab="welcome">Get started</button>
     <button class="tab active" data-tab="respin">Respin</button>
     <button class="tab" data-tab="ugc">UGC</button>
+    <button class="tab" data-tab="video">Image → Video</button>
     <button class="tab" data-tab="library">Library</button>
     <button class="tab" data-tab="about">About</button>
   </nav>
@@ -155,6 +156,7 @@
         <div class="row">
           <button id="download" class="secondary">Download</button>
           <button id="save" class="primary">Save to Library</button>
+          <button id="send-to-video" class="secondary" type="button" title="Animate this image on the Image → Video tab">→ Video</button>
         </div>
         <div id="output-meta" class="muted"></div>
         <div class="refine-block">
@@ -237,6 +239,7 @@
         <button type="button" class="secondary ugc-select-all">Select all</button>
         <button type="button" class="secondary ugc-download-selected">Download selected</button>
         <button type="button" class="secondary ugc-save-selected">Save selected to library</button>
+        <button type="button" class="secondary ugc-send-video">→ Video (selected)</button>
         <button type="button" class="secondary ugc-download-all">Download all ready</button>
         <button type="button" class="secondary ugc-save-all">Save all ready</button>
       </div>
@@ -245,11 +248,64 @@
         <button type="button" class="secondary ugc-select-all">Select all</button>
         <button type="button" class="secondary ugc-download-selected">Download selected</button>
         <button type="button" class="secondary ugc-save-selected">Save selected to library</button>
+        <button type="button" class="secondary ugc-send-video">→ Video (selected)</button>
         <button type="button" class="secondary ugc-download-all">Download all ready</button>
         <button type="button" class="secondary ugc-save-all">Save all ready</button>
       </div>
 
       <div id="ugc-status" class="status hidden"></div>
+    </section>
+
+    <section id="tab-video" class="tab-panel">
+      <div class="block">
+        <label class="block-label">1. Source image (one image, up to 3 model variants)</label>
+        <div id="video-source-preview" class="preview empty">
+          <span>Right-click any image on a page → <em>Grab this image…</em>, paste a URL, upload, or send from Respin / UGC / Library.</span>
+        </div>
+        <div class="row">
+          <input id="video-source-url" type="url" placeholder="https://…/poster.jpg" />
+          <button id="video-load-url" class="secondary">Load URL</button>
+        </div>
+        <div class="row">
+          <input id="video-source-file" type="file" accept="image/*" />
+          <button id="video-grab-tab" class="secondary">Grab visible tab</button>
+        </div>
+        <div class="row">
+          <button id="video-pick-lib" class="secondary" type="button">Pick from Library</button>
+        </div>
+      </div>
+
+      <div class="block">
+        <label class="block-label">2. Guided prompt (Subject → Motion → Camera → Environment → Style → Timing → Audio)</label>
+        <p class="muted" style="margin:0 0 6px;">Grok Imagine Video rewards explicit motion + camera + pacing instructions. Fill what matters — empty fields are dropped.</p>
+        <div class="video-grid">
+          <label>Subject<input id="vp-subject" type="text" placeholder="What is in the image, kept locked" /></label>
+          <label>Motion<input id="vp-motion" type="text" placeholder="slow rotation, dolly-in, pan-left, walk-cycle" /></label>
+          <label>Camera<input id="vp-camera" type="text" placeholder="35mm wide, shallow DOF, handheld, locked-off" /></label>
+          <label>Environment<input id="vp-env" type="text" placeholder="black reflective surface, golden-hour street, studio" /></label>
+          <label>Style<input id="vp-style" type="text" placeholder="premium commercial, cinematic, UGC vlog, anime" /></label>
+          <label>Timing<input id="vp-timing" type="text" placeholder="slow elegant pacing, snappy 5s loop, building energy" /></label>
+          <label>Audio intent (Veo / Sora)<input id="vp-audio" type="text" placeholder="ambient room tone, subtle whoosh on motion, no dialogue" /></label>
+        </div>
+        <textarea id="vp-master" rows="3" placeholder="Composed master prompt — edit freely, or use Polish to let AI rewrite it." style="margin-top:8px;"></textarea>
+        <div class="row" style="margin-top:6px;">
+          <button id="vp-compose" class="secondary" type="button" title="Rebuild the master prompt from the fields above">Compose from fields</button>
+          <button id="vp-polish" class="secondary" type="button" title="Use your AI to rewrite the master into a production-ready video prompt">✨ Polish with AI</button>
+          <button id="vp-apply-all" class="primary" type="button" title="Copy master prompt into all 3 slots">Apply to all slots</button>
+        </div>
+      </div>
+
+      <div class="block">
+        <label class="block-label">3. Render up to 3 model variants</label>
+        <p class="muted" style="margin:0 0 6px;">Each slot animates the source independently. Defaults: Grok Imagine Video (Arena #1) · Veo 3.1 Fast (synced audio) · Kling v3 Standard (first/last-frame control).</p>
+        <div class="row" style="margin-bottom:8px;">
+          <button id="vp-generate-all" class="primary" type="button" disabled>Generate all 3</button>
+          <span class="muted" id="vp-cost-total" style="font-size:11px;"></span>
+        </div>
+        <div id="video-slots"></div>
+      </div>
+
+      <div id="video-status" class="status hidden"></div>
     </section>
 
     <section id="tab-about" class="tab-panel">
