@@ -926,6 +926,21 @@ function updateUgcModelChips() {
     b.classList.toggle("active", b.dataset.model === state.modelOverride);
   });
   $("ugc-model-input").value = state.modelOverride || "";
+  const el = $("ugc-active-model");
+  if (!el) return;
+  const providerId = $("provider").value || null;
+  const provider = state.providers.find((p) => p.id === providerId);
+  const model = effectiveModelForProvider(provider);
+  if (!provider) {
+    el.textContent = "No provider selected — pick one in the Respin tab first.";
+    el.style.color = "#c44";
+  } else if (state.modelOverride && !isOpenRouterProvider(provider)) {
+    el.textContent = `⚠ Next shot will use ${provider.name} → ${model}. Your "${state.modelOverride}" pick is ignored because ${provider.name} isn't an OpenRouter provider. Switch the Respin provider to an OpenRouter key to use Grok / custom models.`;
+    el.style.color = "#c44";
+  } else {
+    el.textContent = `Next shot will use: ${provider.name} → ${model}`;
+    el.style.color = "";
+  }
 }
 document.querySelectorAll(".ugc-model-preset").forEach((b) => {
   b.addEventListener("click", () => {
