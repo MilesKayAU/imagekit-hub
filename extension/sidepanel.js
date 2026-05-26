@@ -1455,6 +1455,25 @@ function newVideoSession() {
   return id;
 }
 
+// "Stay faithful to source image" preamble. Prepended to the prompt so the
+// generative video model uses the uploaded image as a locked first frame and
+// only adds camera/physical motion. Especially important for Grok Imagine,
+// which otherwise redesigns the subject.
+const FAITHFUL_PREAMBLE = [
+  "FIRST FRAME = the reference image, pixel-accurate.",
+  "Do NOT redesign, restyle, recolor, or replace the subject.",
+  "Preserve exact geometry, materials, colour, proportions, branding, and background.",
+  "No new objects, no new hands, no new people, no new props unless explicitly listed below.",
+  "Only add subtle camera motion (slow push-in / parallax) and natural physical motion.",
+  "Photoreal, identical lighting and white balance to the reference.",
+  "---",
+].join(" ");
+
+function buildEffectivePrompt(slot, rawPrompt) {
+  if (!slot?.faithful) return rawPrompt;
+  return `${FAITHFUL_PREAMBLE}\n${rawPrompt}`;
+}
+
 function revokeSlotPlaybackUrl(slot) {
   if (slot?.playbackUrl && String(slot.playbackUrl).startsWith("blob:")) {
     try { URL.revokeObjectURL(slot.playbackUrl); } catch {}
