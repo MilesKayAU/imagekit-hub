@@ -1013,16 +1013,18 @@ $("ugc-generate-pack").addEventListener("click", async () => {
       arr = raw.split(/\n+/).map((l) => l.replace(/^\s*[\d.\-)]+\s*/, "").trim()).filter(Boolean).slice(0, 5);
     }
     if (arr.length < 5) throw new Error("AI didn't return 5 follow-up prompts.");
+    newUgcSession();
     ugc.shots = [
-      { prompt: master, status: "idle", result: null },
-      ...arr.slice(0, 5).map((p) => ({ prompt: String(p), status: "idle", result: null })),
+      { prompt: master, status: "idle", result: null, selected: false, saved: false },
+      ...arr.slice(0, 5).map((p) => ({ prompt: String(p), status: "idle", result: null, selected: false, saved: false })),
     ];
     renderUgcChain();
     ugcStatus("Prompt pack ready. Generate shot 1 to start the chain.", "success");
   } catch (e) {
     ugcStatus(`Couldn't generate pack: ${e.message}. Using built-in template instead.`, "error");
     const pack = UGC_TEMPLATES[ugc.subjectType];
-    ugc.shots = pack.map((p, i) => ({ prompt: i === 0 ? master : p, status: "idle", result: null }));
+    newUgcSession();
+    ugc.shots = pack.map((p, i) => ({ prompt: i === 0 ? master : p, status: "idle", result: null, selected: false, saved: false }));
     renderUgcChain();
   } finally {
     ugc.busy = false;
