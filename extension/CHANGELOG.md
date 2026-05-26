@@ -1,5 +1,9 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.26 — Pop out for larger video preview
+- Added a "⧉ Pop out" button in the header that opens the extension UI in a resizable standalone window, so the Image → Video player isn't squashed by Chrome's narrow side panel.
+- Video players now use `object-fit: contain` with a 70vh cap, so the preview scales up cleanly in the popped-out window without distortion.
+
 ## 1.0.25 — Fix sidepanel video playback for signed/cross-origin assets
 - The inline Image → Video player no longer forces `crossorigin="anonymous"`, which was causing otherwise valid remote MP4s to fail on hosts that do not return CORS headers for media.
 - Added a blob playback fallback: when a slot finishes with a signed or CDN video URL, the extension now fetches the file first and plays a local blob URL if direct playback fails (or if the URL looks like a signed asset URL).
