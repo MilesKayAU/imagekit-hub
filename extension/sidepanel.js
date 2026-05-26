@@ -709,11 +709,16 @@ renderExtras();
 async function consumePending() {
   const { rc_imagekit_pending } = await chrome.storage.local.get("rc_imagekit_pending");
   if (rc_imagekit_pending?.src) {
-    setSource({ url: rc_imagekit_pending.src, dataUrl: rc_imagekit_pending.src });
+    // Route grabbed image to the active tab — UGC if the UGC tab is open, otherwise Respin.
+    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+    if (activeTab === "ugc") {
+      ugcSetSource({ url: rc_imagekit_pending.src, dataUrl: rc_imagekit_pending.src });
+    } else {
+      setSource({ url: rc_imagekit_pending.src, dataUrl: rc_imagekit_pending.src });
+      const respinTab = document.querySelector('[data-tab="respin"]');
+      if (respinTab && activeTab !== "respin") respinTab.click();
+    }
     await chrome.storage.local.remove("rc_imagekit_pending");
-    // Switch to Respin tab so the grabbed image is visible
-    const respinTab = document.querySelector('[data-tab="respin"]');
-    if (respinTab) respinTab.click();
   }
 }
 
