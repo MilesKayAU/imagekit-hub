@@ -1,73 +1,57 @@
+## Goal
+Image → Video tab supports **both** fal.ai and OpenRouter as video providers. The extension sends the model slug; backend routes by prefix (`fal-ai/*` → fal, anything else → OpenRouter). Customer uses whichever BYOK key they already have.
 
-## New "Image → Video" tab
+## Changes — extension only (`extension/`)
 
-Adds a 5th tab in the side panel that animates any still (UGC shot, Respin result, library image, upload, URL, or right-click grab) into up to 3 short clips in parallel using different OpenRouter video models.
+### 1. `VIDEO_MODELS` catalog (sidepanel.js)
+Rebuild as a single map, each entry tagged with `provider: 'fal' | 'openrouter'`. Curated set:
 
-### Model picks (researched on openrouter.ai/models?output_modalities=video)
+**fal.ai**
+- `fal-ai/veo3/image-to-video` — Veo 3 (audio, 8s, 720p/1080p, 16:9 / 9:16)
+- `fal-ai/veo3/fast/image-to-video` — Veo 3 Fast (cheaper)
+- `fal-ai/kling-video/v2.1/standard/image-to-video` — Kling 2.1 Std (5/10s)
+- `fal-ai/kling-video/v2.1/pro/image-to-video` — Kling 2.1 Pro
+- `fal-ai/minimax/hailuo-02/standard/image-to-video` — Hailuo-02 (6/10s)
+- `fal-ai/luma-dream-machine/ray-2/image-to-video` — Luma Ray 2
+- `fal-ai/pixverse/v4.5/image-to-video` — PixVerse 4.5
+- `fal-ai/wan-pro/image-to-video` — Wan Pro
 
-| Slot | Default model | Duration | Resolutions | Price | Why |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `x-ai/grok-imagine-video` | 1–15s @ 24fps | 480p / 720p | $0.05 / $0.07 per sec | Currently #1 on Arena image-to-video leaderboard. Best instruction following. |
-| 2 | `google/veo-3.1-fast` | 4–8s | 720p / 1080p | $0.10 per sec | Native synced audio, top-tier visual quality. |
-| 3 | `kwaivgi/kling-v3.0-std` | 3–15s | up to 1080p | $0.126 per sec | First/last-frame control, strong cinematic motion. |
+**OpenRouter**
+- `x-ai/grok-imagine-video` — Grok Imagine (1–15s, 480p/720p)
+- `google/veo-3.1-fast` — Veo 3.1 Fast (audio)
+- `google/veo-3.1` — Veo 3.1
+- `kwaivgi/kling-v3.0-std` — Kling v3 Std
+- `minimax/hailuo-2.3` — Hailuo 2.3
+- `alibaba/wan-2.6` — Wan 2.6
+- `openai/sora-2-pro` — Sora 2 Pro
 
-Each slot has its own model picker (presets above + free-text OpenRouter slug field, same pattern as UGC v1.0.12). Honorable mentions in the custom-slug help text: `minimax/hailuo-2.3` ($0.08/s, realistic motion), `alibaba/wan-2.6` ($0.04/s, cheapest), `openai/sora-2-pro` ($0.30/s, premium).
+Each entry keeps `{ label, provider, durMin, durMax, durDefault, resolutions, aspects, audio, pricePerSec }`.
 
-### Source image — one source feeds all 3 slots
+### 2. Slot UI
+- Model dropdown groups options under **fal.ai** and **OpenRouter** optgroups so the source is obvious.
+- Each slot card shows a small `fal` or `OR` badge next to the model name.
+- Custom slug field accepts either format; auto-detect provider from prefix.
+- Default slots: Veo 3 (fal), Kling 2.1 Std (fal), Grok Imagine (OpenRouter) — gives the user one of each big family.
 
-Source widget reuses the existing pattern: drag/upload, paste URL, "Grab visible tab", "Pick from Library", and right-click context-menu grab routes here when this tab is active (extending the v1.0.9 active-tab routing).
+### 3. Provider key notice (top of Video tab)
+> Image-to-video uses your BYOK key from ReadyCode → AI Providers. `fal-ai/*` models bill your **fal.ai** key (`https://fal.run`); all other slugs bill your **OpenRouter** key. Add either or both — pick the model that matches the key you have.
 
-Two new "Send to Video" buttons added elsewhere:
-- **Respin tab** — under the output image, "Send to Video".
-- **UGC tab** — per shot card and as a new toolbar button "Send selected to Video" (uses the v1.0.13 checkbox selection).
+### 4. Request/response field alignment
+- `generateVideoSlot()` → rename `duration` → `duration_seconds`. Pass `model_slug` (backend uses prefix to route). Capture `provider`, `provider_id`, `model_slug`, `status_url`, `response_url` from the response onto the slot.
+- `pollVideoJob()` → recognise the backend's vocabulary: `queued | in_progress | completed | failed`. Show `queue_position` when present (`In queue (#3)…`), `progress %` otherwise. Keep legacy `succeeded` as fallback.
+- `saveVideoSlot()` → send top-level `duration_seconds` alongside the existing `video_url`, `mime_type`, `kind:"video"`, `album`, `session_id`, `source_metadata`.
 
-Both hand the image (+ that shot's prompt as a starting point for slot 1) to the Image-to-Video tab and switch to it.
+### 5. Version + changelog
+- `extension/manifest.json` → `1.0.16`
+- `extension/CHANGELOG.md` → entry covering: dual-provider routing, fal.ai + OpenRouter catalogs, field-name fixes (`duration_seconds`), in-queue progress UI, key-source notice.
+- Repackage `public/readycode-imagekit-oss.zip`.
 
-### Guided prompt editor (one master prompt, slot-specific overrides)
+## Out of scope
+- No web app / `src/` changes.
+- No other tab changes.
 
-Master prompt area uses the Subject → Motion → Camera → Environment → Style → Timing → Audio structure from the DeeVid article, rendered as 7 short labeled inputs that get composed into the final prompt string. A "Polish with AI" button calls the existing `imagekit-enhance-prompt` BYOK text endpoint with a new `mode: "video_prompt"` system prompt that:
-- enforces the 7-part structure
-- inserts a single explicit motion verb (rotate, dolly-in, pan-left, etc.)
-- tunes pacing language to fit the selected duration (e.g. "slow 12s reveal" vs "snappy 5s loop")
-- adds audio-intent line only when slot model supports synced audio (Veo, Sora)
-
-Each slot can override the master prompt before generating (same pattern as UGC shot cards).
-
-### Per-slot controls
-
-- Duration slider (clamped to model's min/max — Grok 1–15, Veo 4–8, Kling 3–15)
-- Aspect ratio chips (slot 1 supports 7 ratios, others 3)
-- Resolution toggle (480p / 720p / 1080p, model-dependent)
-- Live cost estimate: `duration × $/sec` shown under the slot
-- "Generate" button per slot + "Generate all 3" toolbar button
-
-### Async job handling
-
-Video generation takes minutes, not seconds. Each slot card shows a progress state (queued → rendering → ready) and polls until done. When ready: inline `<video>` preview, Download, Save to Library, and "Re-generate with this prompt".
-
-### Library grouping
-
-Saved videos use `kind: "video"`, `album: "I2V · <source name> · <timestamp>"`, and `session_id` so the library can group all 3 model variants of one source image together (extends the v1.0.13 album pattern).
-
-### Files to change
-
-- `extension/sidepanel.html` — add 5th tab markup, 3 slot cards, structured prompt grid
-- `extension/sidepanel.css` — `.video-slot-card`, `.video-progress`, cost pill
-- `extension/sidepanel.js` — `video` module (state, slot defaults, polling, send-to-video hooks, prompt composer); patch `consumePending` to also route grabs to video tab; patch UGC chain to add "Send to Video" per shot + toolbar
-- `extension/manifest.json` + `CHANGELOG.md` — bump to v1.0.14
-
-### ReadyCode backend work required (separate repo, called out — not in this plan's diff)
-
-1. New edge function `imagekit-video-generate` that:
-   - takes `{ provider_id, model, prompt, image_url, duration, resolution, aspect_ratio }`
-   - calls OpenRouter's video endpoint with the user's BYOK key
-   - returns a job id; supports polling endpoint `imagekit-video-status?job_id=...`
-2. Extend `imagekit-save` to accept `video_base64` / `video_url` and `mime_type: video/mp4`, persist `album` + `session_id`.
-3. Extend `imagekit-enhance-prompt` to accept `mode: "video_prompt"` with the structured-prompt system message.
-
-### Out of scope
-
-- Video-to-video editing (Grok supports it; defer to a later tab)
-- Audio extraction / dubbing
-- Multi-shot stitching across slots
-- Auto-publishing to social platforms
+## Message to paste into the backend project
+> Please make `imagekit-video-generate` / `imagekit-video-status` route by **`model_slug` prefix**:
+> - `fal-ai/*` → existing fal.ai queue branch (uses user's fal BYOK key).
+> - Anything else (e.g. `x-ai/*`, `google/*`, `kwaivgi/*`, `minimax/*`, `alibaba/*`, `openai/*`) → OpenRouter video API branch using the user's OpenRouter BYOK key.
+> Normalize both into the same `{ status: queued|in_progress|completed|failed, progress, queue_position, video_url, mime_type, logs }` shape. Return `provider: 'fal' | 'openrouter'` in the generate response so the extension can show it.
