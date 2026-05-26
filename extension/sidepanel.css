@@ -52,6 +52,30 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .enhanced-block { margin-top: 8px; padding: 10px; background: #f6f5ff; border: 1px solid #ddd6fe; border-radius: 6px; }
 .enhanced-block.hidden { display: none; }
 .enhanced-block textarea { background: #fff; }
+
+.model-override { margin-top: 6px; font-size: 12px; color: #335; background: #f6f5ff; border: 1px solid #ddd6fe; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px; }
+.model-override.hidden { display: none; }
+.model-override code { font-size: 11px; background: #fff; padding: 1px 4px; border-radius: 3px; border: 1px solid #e5e5e5; }
+.link-btn { background: none; border: none; padding: 0; color: #4f46e5; cursor: pointer; font-size: 12px; text-decoration: underline; }
+.link-btn:hover { color: #4338ca; background: none; }
+
+.model-picker { margin-top: 10px; border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; background: #fff; }
+.model-picker.hidden { display: none; }
+.model-picker summary { cursor: pointer; font-size: 12px; font-weight: 600; color: #555; list-style: none; }
+.model-picker summary::-webkit-details-marker { display: none; }
+.sort-tabs { display: flex; gap: 4px; margin: 8px 0; align-items: center; }
+.sort-tab { padding: 4px 8px; font-size: 11px; border-radius: 4px; background: #fff; border: 1px solid #d4d4d4; }
+.sort-tab.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+.model-list { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.model-card { display: flex; flex-direction: column; gap: 3px; padding: 8px; border: 1px solid #e5e5e5; border-radius: 6px; background: #fafafa; }
+.model-card.active { border-color: #4f46e5; background: #f6f5ff; }
+.model-card .row1 { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.model-card .name { font-size: 12px; font-weight: 600; color: #1a1a1a; }
+.model-card .provider-chip { font-size: 10px; padding: 1px 6px; background: #eef; color: #335; border-radius: 999px; }
+.model-card .desc { font-size: 11px; color: #666; line-height: 1.35; max-height: 2.7em; overflow: hidden; }
+.model-card .stats { display: flex; gap: 10px; font-size: 11px; color: #555; }
+.model-card .use-btn { padding: 3px 8px; font-size: 11px; }
+.model-footer { margin: 8px 0 0; font-size: 10px; }
 .status.error { background: #fee; color: #a33; }
 .status.success { background: #efe; color: #373; }
 
