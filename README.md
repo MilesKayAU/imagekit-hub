@@ -15,7 +15,7 @@ The extension source lives in the [`extension/`](./extension) folder. Two ways t
 Grab the latest release zip — it contains only the extension files, nothing else:
 
 ```
-https://github.com/<org>/imagekit-hub/releases/latest/download/readycode-imagekit.zip
+https://github.com/MilesKayAU/imagekit-hub/releases/latest/download/readycode-imagekit.zip
 ```
 
 Unzip it anywhere.
@@ -23,7 +23,7 @@ Unzip it anywhere.
 ### Option B — Clone the repo
 
 ```bash
-git clone https://github.com/<org>/imagekit-hub.git
+git clone https://github.com/MilesKayAU/imagekit-hub.git
 cd imagekit-hub/extension
 ```
 
