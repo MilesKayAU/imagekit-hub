@@ -12,10 +12,10 @@ The extension source lives in the [`extension/`](./extension) folder. Two ways t
 
 ### Option A — Packaged zip (recommended)
 
-Grab the latest release zip — it contains only the extension files, nothing else:
+Grab the latest packaged zip — it contains only the extension files, nothing else:
 
 ```
-https://github.com/MilesKayAU/imagekit-hub/releases/latest/download/readycode-imagekit.zip
+https://imagekit.readycode.ai/readycode-imagekit-oss.zip
 ```
 
 Unzip it anywhere.
@@ -68,7 +68,7 @@ Maintainers only:
 bash scripts/package.sh
 ```
 
-Produces `readycode-imagekit.zip` at the repo root, ready to attach to a GitHub Release.
+Produces `readycode-imagekit.zip` at the repo root for maintainers to distribute.
 
 ## What's NOT in this repo (and won't be)
 
