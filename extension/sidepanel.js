@@ -469,7 +469,10 @@ $("custom-model-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); $("custom-model-apply").click(); }
 });
 
-document.getElementById("provider").addEventListener("change", updateModelPickerVisibility);
+document.getElementById("provider").addEventListener("change", () => {
+  updateModelPickerVisibility();
+  if (typeof updateUgcModelChips === "function") updateUgcModelChips();
+});
 
 // --- generate ---
 $("generate").addEventListener("click", async () => {
