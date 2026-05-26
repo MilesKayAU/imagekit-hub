@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.18 — OpenRouter videos use the dedicated /videos API (server-side)
+- Backend now calls OpenRouter's async `POST /api/v1/videos` + `GET /api/v1/videos/{id}` endpoints instead of `/v1/chat/completions` for video slugs. Image-to-video sends the source as `frame_images[{ frame_type: "first_frame" }]`.
+- Fixes "OpenRouter has no model at x-ai/grok-imagine-video" — the slug was always valid; we were hitting the wrong endpoint.
+- Status normalised: `pending`/`processing` → `queued`/`in_progress`, `completed` returns `unsigned_urls[0]`. Extension's poll loop is unchanged.
+
 ## 1.0.17 — Auto-fallback to OpenRouter for fal-ai slugs (server-side)
 - Backend now transparently reroutes `fal-ai/*` video slugs to their OpenRouter equivalent when no fal.ai key is configured but an OpenRouter key is. No extension changes required — pick any fal slug and it will run on whichever key you have.
 - Returns a clear error only when neither key can service the slug.
