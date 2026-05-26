@@ -1,5 +1,15 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.16 — Dual-provider Image → Video (fal.ai + OpenRouter)
+- **Backend wired up.** The Image → Video tab now talks to the new `imagekit-video-generate` / `imagekit-video-status` / `imagekit-save` endpoints.
+- **Two providers, one tab.** Each slot's model dropdown is grouped under **fal.ai** and **OpenRouter** optgroups; the backend routes by slug prefix — `fal-ai/*` uses your fal.ai BYOK key, anything else uses your OpenRouter BYOK key. Add either or both.
+- **Default slots:** Veo 3 (fal), Kling 2.1 Std (fal), Grok Imagine (OpenRouter).
+- **Slot badge:** every slot card shows a small `fal` or `OR` chip so you know which key will be billed.
+- **Custom slug input** accepts both formats (`fal-ai/veo3/image-to-video` or `x-ai/grok-imagine-video`) and auto-detects the provider.
+- **Field alignment:** sends `duration_seconds` / `model_slug` to match the backend contract; `imagekit-save` now sends top-level `duration_seconds` plus `provider` / `model_slug` in `source_metadata`.
+- **Better progress UI:** recognises the backend's `queued | in_progress | completed | failed` vocabulary, displays `In queue (#N)…` when fal.ai reports a queue position, falls back to the last log line when progress % isn't available.
+- **BYOK notice** added to the top of the Video tab so users know exactly which key powers which slug.
+
 ## 1.0.15 — Brighter toolbar icon
 - Replaced the dark black/red icon with a bright orange→pink→purple gradient picture/sparkle mark so it's easy to see on both light and dark Chrome toolbars.
 

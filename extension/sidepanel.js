@@ -1353,22 +1353,36 @@ Rules:
 - Audio line: include only if the target model supports synced audio (Veo / Sora). For Grok / Kling, return the line "Audio: n/a".
 - Under 90 words. No preamble, no bullets, no markdown. Return only the prompt text.`;
 
+// Provider is inferred from slug prefix: fal-ai/* → fal, anything else → openrouter.
+// Backend (imagekit-video-generate) routes by the same rule.
+function providerForSlug(slug) {
+  return /^fal-ai\//i.test(slug) ? "fal" : "openrouter";
+}
+
 const VIDEO_MODELS = {
-  "x-ai/grok-imagine-video":   { label: "Grok Imagine Video",  durMin: 1, durMax: 15, durDefault: 8, resolutions: ["480p","720p"],         aspects: ["16:9","9:16","1:1","4:3","3:4","3:2","2:3"], audio: false, pricePerSec: { "480p": 0.05, "720p": 0.07 } },
-  "google/veo-3.1-fast":       { label: "Google Veo 3.1 Fast", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "720p": 0.10, "1080p": 0.10 } },
-  "google/veo-3.1-lite":       { label: "Google Veo 3.1 Lite", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "720p": 0.05, "1080p": 0.05 } },
-  "google/veo-3.1":            { label: "Google Veo 3.1",      durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["1080p"],               aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "1080p": 0.20 } },
-  "kwaivgi/kling-v3.0-std":    { label: "Kling v3 Standard",   durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p"],                aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.126 } },
-  "kwaivgi/kling-v3.0-pro":    { label: "Kling v3 Pro",        durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.168, "1080p": 0.168 } },
-  "minimax/hailuo-2.3":        { label: "MiniMax Hailuo 2.3",  durMin: 5, durMax: 10, durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.0817, "1080p": 0.0817 } },
-  "alibaba/wan-2.6":           { label: "Alibaba Wan 2.6",     durMin: 4, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: true,  pricePerSec: { "720p": 0.04, "1080p": 0.04 } },
-  "openai/sora-2-pro":         { label: "OpenAI Sora 2 Pro",   durMin: 4, durMax: 12, durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: true,  pricePerSec: { "720p": 0.30, "1080p": 0.30 } },
+  // ── fal.ai ────────────────────────────────────────────────────────────────
+  "fal-ai/veo3/image-to-video":                       { label: "Veo 3",            provider: "fal", durMin: 8, durMax: 8,  durDefault: 8, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],         audio: true,  pricePerSec: { "720p": 0.50, "1080p": 0.75 } },
+  "fal-ai/veo3/fast/image-to-video":                  { label: "Veo 3 Fast",       provider: "fal", durMin: 8, durMax: 8,  durDefault: 8, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],         audio: true,  pricePerSec: { "720p": 0.25, "1080p": 0.40 } },
+  "fal-ai/kling-video/v2.1/standard/image-to-video":  { label: "Kling 2.1 Std",    provider: "fal", durMin: 5, durMax: 10, durDefault: 5, resolutions: ["720p"],         aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.05 } },
+  "fal-ai/kling-video/v2.1/pro/image-to-video":       { label: "Kling 2.1 Pro",    provider: "fal", durMin: 5, durMax: 10, durDefault: 5, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.09, "1080p": 0.09 } },
+  "fal-ai/minimax/hailuo-02/standard/image-to-video": { label: "Hailuo-02",        provider: "fal", durMin: 6, durMax: 10, durDefault: 6, resolutions: ["768p"],         aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "768p": 0.045 } },
+  "fal-ai/luma-dream-machine/ray-2/image-to-video":   { label: "Luma Ray 2",       provider: "fal", durMin: 5, durMax: 9,  durDefault: 5, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.12, "1080p": 0.18 } },
+  "fal-ai/pixverse/v4.5/image-to-video":              { label: "PixVerse 4.5",     provider: "fal", durMin: 5, durMax: 8,  durDefault: 5, resolutions: ["540p","720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "540p": 0.03, "720p": 0.04, "1080p": 0.10 } },
+  "fal-ai/wan-pro/image-to-video":                    { label: "Wan Pro",          provider: "fal", durMin: 6, durMax: 6,  durDefault: 6, resolutions: ["720p"],         aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.08 } },
+  // ── OpenRouter ───────────────────────────────────────────────────────────
+  "x-ai/grok-imagine-video":   { label: "Grok Imagine",     provider: "openrouter", durMin: 1, durMax: 15, durDefault: 8, resolutions: ["480p","720p"],  aspects: ["16:9","9:16","1:1","4:3","3:4","3:2","2:3"], audio: false, pricePerSec: { "480p": 0.05, "720p": 0.07 } },
+  "google/veo-3.1-fast":       { label: "Veo 3.1 Fast",     provider: "openrouter", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],                               audio: true,  pricePerSec: { "720p": 0.10, "1080p": 0.10 } },
+  "google/veo-3.1":            { label: "Veo 3.1",          provider: "openrouter", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["1080p"],        aspects: ["16:9","9:16"],                               audio: true,  pricePerSec: { "1080p": 0.20 } },
+  "kwaivgi/kling-v3.0-std":    { label: "Kling v3 Std",     provider: "openrouter", durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p"],         aspects: ["16:9","9:16","1:1"],                         audio: false, pricePerSec: { "720p": 0.126 } },
+  "minimax/hailuo-2.3":        { label: "MiniMax Hailuo",   provider: "openrouter", durMin: 5, durMax: 10, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],                         audio: false, pricePerSec: { "720p": 0.0817, "1080p": 0.0817 } },
+  "alibaba/wan-2.6":           { label: "Wan 2.6",          provider: "openrouter", durMin: 4, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],                         audio: true,  pricePerSec: { "720p": 0.04, "1080p": 0.04 } },
+  "openai/sora-2-pro":         { label: "Sora 2 Pro",       provider: "openrouter", durMin: 4, durMax: 12, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],                         audio: true,  pricePerSec: { "720p": 0.30, "1080p": 0.30 } },
 };
 
 const VIDEO_SLOT_DEFAULTS = [
-  { model: "x-ai/grok-imagine-video", resolution: "720p", aspect: "16:9" },
-  { model: "google/veo-3.1-fast",     resolution: "720p", aspect: "16:9" },
-  { model: "kwaivgi/kling-v3.0-std",  resolution: "720p", aspect: "16:9" },
+  { model: "fal-ai/veo3/image-to-video",                      resolution: "720p", aspect: "16:9" },
+  { model: "fal-ai/kling-video/v2.1/standard/image-to-video", resolution: "720p", aspect: "16:9" },
+  { model: "x-ai/grok-imagine-video",                         resolution: "720p", aspect: "16:9" },
 ];
 
 const video = {
@@ -1462,7 +1476,7 @@ function renderVideoSlots() {
   const root = $("video-slots");
   root.innerHTML = "";
   video.slots.forEach((slot, i) => {
-    const m = VIDEO_MODELS[slot.model] || VIDEO_MODELS["x-ai/grok-imagine-video"];
+    const m = VIDEO_MODELS[slot.model] || VIDEO_MODELS["fal-ai/veo3/image-to-video"];
     const card = document.createElement("div");
     card.className = `video-slot-card ${slot.status}`;
 
@@ -1470,7 +1484,8 @@ function renderVideoSlots() {
     header.className = "slot-header";
     const title = document.createElement("span");
     title.className = "slot-title";
-    title.textContent = `Slot ${i + 1}`;
+    const slotProvider = m.provider || providerForSlug(slot.model);
+    title.innerHTML = `Slot ${i + 1} <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${slotProvider === "fal" ? "#dbeafe" : "#fce7f3"};color:${slotProvider === "fal" ? "#1e40af" : "#9d174d"};font-weight:600;text-transform:uppercase;letter-spacing:0.3px;">${slotProvider === "fal" ? "fal" : "OR"}</span>`;
     const st = document.createElement("span");
     st.className = "slot-state";
     st.textContent = ({ idle: "Ready", queued: "Queued…", rendering: slot.progressMsg || "Rendering…", ready: "Ready ✓", failed: "Failed" })[slot.status];
@@ -1483,15 +1498,19 @@ function renderVideoSlots() {
     header.appendChild(st);
     card.appendChild(header);
 
-    // Model picker
+    // Model picker — grouped by provider so the source key is obvious
     const modelSel = document.createElement("select");
+    const falGroup = document.createElement("optgroup"); falGroup.label = "fal.ai (uses fal BYOK key)";
+    const orGroup  = document.createElement("optgroup"); orGroup.label  = "OpenRouter (uses OpenRouter BYOK key)";
     for (const [id, def] of Object.entries(VIDEO_MODELS)) {
       const opt = document.createElement("option");
       opt.value = id;
       opt.textContent = `${def.label} — ${id}`;
       if (id === slot.model) opt.selected = true;
-      modelSel.appendChild(opt);
+      (def.provider === "fal" ? falGroup : orGroup).appendChild(opt);
     }
+    modelSel.appendChild(falGroup);
+    modelSel.appendChild(orGroup);
     modelSel.addEventListener("change", () => {
       slot.model = modelSel.value;
       const newDef = VIDEO_MODELS[slot.model];
@@ -1503,13 +1522,13 @@ function renderVideoSlots() {
     });
     card.appendChild(modelSel);
 
-    // Custom OpenRouter slug row
+    // Custom slug row — accepts either fal.ai or OpenRouter format
     const customRow = document.createElement("div");
     customRow.className = "row";
     const customInput = document.createElement("input");
     customInput.type = "text";
     customInput.className = "custom-model-input";
-    customInput.placeholder = "or paste any OpenRouter video model slug";
+    customInput.placeholder = "or paste a slug — fal-ai/… or org/model";
     customInput.value = VIDEO_MODELS[slot.model] ? "" : slot.model;
     const customBtn = document.createElement("button");
     customBtn.type = "button";
@@ -1517,10 +1536,10 @@ function renderVideoSlots() {
     customBtn.textContent = "Use";
     customBtn.addEventListener("click", () => {
       const id = customInput.value.trim();
-      if (!/^[a-z0-9._-]+\/[a-z0-9._:-]+$/i.test(id)) { videoStatus("Enter a valid model id, e.g. x-ai/grok-imagine-video", "error"); return; }
+      if (!/^[a-z0-9._-]+\/[a-z0-9._/:-]+$/i.test(id)) { videoStatus("Enter a valid slug, e.g. fal-ai/veo3/image-to-video or x-ai/grok-imagine-video", "error"); return; }
       // Register unknown model with permissive defaults so the UI works
       if (!VIDEO_MODELS[id]) {
-        VIDEO_MODELS[id] = { label: id, durMin: 1, durMax: 15, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "720p": 0.10, "1080p": 0.10 } };
+        VIDEO_MODELS[id] = { label: id, provider: providerForSlug(id), durMin: 1, durMax: 15, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "720p": 0.10, "1080p": 0.10 } };
       }
       slot.model = id;
       renderVideoSlots();
@@ -1653,16 +1672,22 @@ async function generateVideoSlot(i) {
     const data = await api("imagekit-video-generate", {
       provider_id: providerId,
       model: slot.model,
+      model_slug: slot.model,
       prompt,
       image_url: video.sourceUrl,
-      duration: slot.duration,
+      duration_seconds: slot.duration,
       resolution: slot.resolution,
       aspect_ratio: slot.aspect,
     });
     if (data.error) throw new Error(data.error);
     // Two possible response shapes:
-    //   { job_id }                                  — async, requires polling
+    //   { job_id, provider, provider_id, model_slug, status_url, response_url } — async
     //   { video_url, mime_type, ... }               — sync, finished already
+    slot.providerName  = data.provider || providerForSlug(slot.model);
+    slot.providerJobId = data.provider_id || null;
+    slot.modelSlug     = data.model_slug || slot.model;
+    slot.statusUrl     = data.status_url || null;
+    slot.responseUrl   = data.response_url || null;
     if (data.video_url) {
       slot.result = data;
       slot.status = "ready";
@@ -1671,7 +1696,7 @@ async function generateVideoSlot(i) {
     } else if (data.job_id) {
       slot.jobId = data.job_id;
       slot.status = "rendering";
-      slot.progressMsg = "Rendering — this can take several minutes…";
+      slot.progressMsg = `Submitted to ${slot.providerName} — waiting…`;
       await pollVideoJob(i);
     } else {
       throw new Error("Backend returned no job_id or video_url.");
@@ -1700,10 +1725,21 @@ async function pollVideoJob(i) {
     try {
       const data = await api("imagekit-video-status", { job_id: slot.jobId });
       const st = (data?.status || "").toLowerCase();
-      if (data?.progress) slot.progressMsg = `Rendering — ${data.progress}%`;
-      else if (data?.message) slot.progressMsg = data.message;
+      if (st === "queued" && data?.queue_position != null) {
+        slot.progressMsg = `In queue (#${data.queue_position})…`;
+      } else if (st === "in_progress" && data?.progress != null) {
+        slot.progressMsg = `Rendering — ${data.progress}%`;
+      } else if (data?.progress != null) {
+        slot.progressMsg = `Rendering — ${data.progress}%`;
+      } else if (Array.isArray(data?.logs) && data.logs.length) {
+        slot.progressMsg = String(data.logs[data.logs.length - 1]).slice(0, 120);
+      } else if (data?.message) {
+        slot.progressMsg = data.message;
+      } else if (st === "in_progress") {
+        slot.progressMsg = "Rendering…";
+      }
       renderVideoSlots();
-      if (st === "succeeded" || st === "completed" || data?.video_url) {
+      if (st === "completed" || st === "succeeded" || data?.video_url) {
         slot.result = data;
         slot.status = "ready";
         slot.progressMsg = "";
@@ -1748,11 +1784,14 @@ async function saveVideoSlot(i) {
       video_url: slot.result.video_url,
       mime_type: slot.result.mime_type || "video/mp4",
       kind: "video",
+      duration_seconds: slot.duration,
       album: video.albumName,
       session_id: video.sessionId,
       source_metadata: {
         prompt: slot.prompt || $("vp-master").value,
         model: slot.model,
+        model_slug: slot.modelSlug || slot.model,
+        provider: slot.providerName || providerForSlug(slot.model),
         duration_s: slot.duration,
         resolution: slot.resolution,
         aspect_ratio: slot.aspect,
