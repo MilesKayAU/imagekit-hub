@@ -1705,8 +1705,17 @@ async function generateVideoSlot(i) {
     slot.modelSlug     = data.model_slug || slot.model;
     slot.statusUrl     = data.status_url || null;
     slot.responseUrl   = data.response_url || null;
-    if (data.video_url) {
-      slot.result = data;
+    const syncUrl = extractVideoUrl(data);
+    if (syncUrl) {
+      try { console.log(`[imagekit-video-generate] slot ${i + 1} sync payload:`, JSON.parse(JSON.stringify(data))); } catch {}
+      slot.result = {
+        ...data,
+        video_url: syncUrl,
+        mime_type: data.mime_type || data.content_type || "video/mp4",
+        provider_name: data.provider_name || slot.providerName || providerForSlug(slot.model),
+        model_name:    data.model_name    || slot.modelSlug || slot.model,
+        duration_s:    data.duration_s    || data.duration || slot.duration,
+      };
       slot.status = "ready";
       slot.progressMsg = "";
       videoStatus(`Slot ${i + 1} ready.`, "success");
@@ -1725,6 +1734,44 @@ async function generateVideoSlot(i) {
   } finally {
     renderVideoSlots();
   }
+}
+
+// Backends/providers return the finished video URL under many different keys.
+// Walk the response and pick the first plausible one.
+function extractVideoUrl(data) {
+  if (!data || typeof data !== "object") return null;
+  const isVidUrl = (v) =>
+    typeof v === "string" &&
+    /^https?:\/\//i.test(v) &&
+    (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(v) ||
+      /\/video\//i.test(v) ||
+      /fal\.media|openrouter|grok|x\.ai|replicate|runpod|supabase|amazonaws|cloudfront/i.test(v));
+  const direct = [
+    data.video_url, data.url, data.output_url, data.result_url, data.asset_url,
+    data.download_url, data.media_url, data.file_url, data.signed_url,
+    data.video?.url, data.output?.url, data.result?.url, data.asset?.url,
+    data.data?.video_url, data.data?.url, data.response?.video_url, data.response?.url,
+  ];
+  for (const v of direct) if (isVidUrl(v) || (typeof v === "string" && /^https?:/i.test(v))) return v;
+  const arrays = [
+    data.unsigned_urls, data.signed_urls, data.urls, data.outputs, data.assets,
+    data.videos, data.results, data.files, data.media,
+    data.output?.outputs, data.output?.assets, data.output?.videos,
+    data.response?.assets, data.response?.outputs, data.data?.assets, data.data?.outputs,
+  ];
+  for (const arr of arrays) {
+    if (!Array.isArray(arr)) continue;
+    for (const item of arr) {
+      if (typeof item === "string" && /^https?:/i.test(item)) return item;
+      if (item && typeof item === "object") {
+        const v = item.url || item.video_url || item.signed_url || item.unsigned_url || item.download_url;
+        if (typeof v === "string" && /^https?:/i.test(v)) return v;
+      }
+    }
+  }
+  // last resort: any https url in the top-level values that looks like a video host
+  for (const v of Object.values(data)) if (isVidUrl(v)) return v;
+  return null;
 }
 
 async function pollVideoJob(i) {
@@ -1764,8 +1811,25 @@ async function pollVideoJob(i) {
         slot.progressMsg = "Rendering…";
       }
       renderVideoSlots();
-      if (st === "completed" || st === "succeeded" || data?.video_url) {
-        slot.result = data;
+      const terminal = st === "completed" || st === "succeeded" || st === "ready" || st === "success";
+      const extractedUrl = extractVideoUrl(data);
+      if (terminal || extractedUrl) {
+        // Log full response so we can see which field carried the URL.
+        try { console.log(`[imagekit-video-status] slot ${i + 1} terminal payload:`, JSON.parse(JSON.stringify(data))); } catch {}
+        if (!extractedUrl) {
+          slot.status = "failed";
+          slot.progressMsg = "Ready but no video URL in response. See console.";
+          videoStatus(`Slot ${i + 1}: backend reported ready but returned no video URL.`, "error");
+          return;
+        }
+        slot.result = {
+          ...data,
+          video_url: extractedUrl,
+          mime_type: data?.mime_type || data?.content_type || "video/mp4",
+          provider_name: data?.provider_name || slot.providerName || providerForSlug(slot.model),
+          model_name:    data?.model_name    || slot.modelSlug || slot.model,
+          duration_s:    data?.duration_s    || data?.duration || slot.duration,
+        };
         slot.status = "ready";
         slot.progressMsg = "";
         renderVideoSlots();

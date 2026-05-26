@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.22 — Wire the player to whatever URL field the backend returns
+- Ready ✓ no longer leaves the `<video>` blank. Status responses are walked for the finished URL across all common shapes: `video_url`, `url`, `output_url`, `download_url`, `signed_url`, `unsigned_urls[]`, `assets[].url`, `output.url`, `outputs[]`, `videos[]`, `data.url`, `response.url`, etc.
+- The same extractor runs on the sync-path generate response, so providers that finish in one call also bind correctly.
+- Full terminal payload is now logged to the console (`[imagekit-video-status] ... terminal payload:`) so we can confirm which field carried the URL. If the backend reports terminal/ready but no plausible URL is present, the slot now flips to Failed with a clear message instead of silently showing an empty player.
+
 ## 1.0.21 — Recover provider/model identity on stale video polls
 - Hardened `imagekit-video-status` polling so queued jobs always send `provider_id` + `model_slug`, even for slots created before those fields were cached locally.
 - Video polling now stores the request `provider_id` at submit time and falls back to the matching OpenRouter/fal BYOK provider automatically instead of depending on the currently selected dropdown item.
