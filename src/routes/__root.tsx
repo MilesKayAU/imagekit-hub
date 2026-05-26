@@ -9,8 +9,6 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
-import { SiteHeader } from "@/components/site/SiteHeader";
-import { SiteFooter } from "@/components/site/SiteFooter";
 
 function NotFoundComponent() {
   return (
@@ -74,28 +72,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "author", content: "ReadyCode" },
-      { property: "og:site_name", content: "ReadyCode ImageKit" },
+      { title: "ReadyCode Image Kit AI images in Chrome" },
+      { name: "description", content: "Chrome extension, allows you to connect your AI of choice to create and store images from any website in chrome" },
+      { name: "author", content: "Lovable" },
+      { property: "og:title", content: "ReadyCode Image Kit AI images in Chrome" },
+      { property: "og:description", content: "Chrome extension, allows you to connect your AI of choice to create and store images from any website in chrome" },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "ReadyCode Image Kit AI images in Chrome" },
+      { name: "twitter:description", content: "Chrome extension, allows you to connect your AI of choice to create and store images from any website in chrome" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/14c30d3b-da5b-45e0-8634-dd57c25c4f9a/id-preview-284bac8c--dad2951b-0327-4fde-b0f7-c524af815dac.lovable.app-1779773829769.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/14c30d3b-da5b-45e0-8634-dd57c25c4f9a/id-preview-284bac8c--dad2951b-0327-4fde-b0f7-c524af815dac.lovable.app-1779773829769.png" },
     ],
     links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
-      { rel: "icon", type: "image/svg+xml", href: "/icon.svg" },
-      { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
-      { rel: "apple-touch-icon", href: "/icon-512.png" },
-    ],
-    scripts: [
       {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "ReadyCode",
-          url: "https://readycode.ai",
-          sameAs: ["https://github.com/MilesKayAU/imagekit-hub"],
-        }),
+        rel: "stylesheet",
+        href: appCss,
       },
     ],
   }),
@@ -124,13 +117,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen flex-col bg-background text-foreground">
-        <SiteHeader />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <SiteFooter />
-      </div>
+      <Outlet />
     </QueryClientProvider>
   );
 }
