@@ -1,5 +1,13 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.23 — Reference Video → Product Ad (8–15s)
+- New block on the Video tab: paste a YouTube / TikTok / Shorts URL, pick a style mode (Safe Original / Closer Match / Prompt Only), and the extension fetches public oEmbed metadata + asks your AI provider to condense the reference into a brand-safe 8–15s storyboard.
+- Hard duration rule enforced client-side: total 8–15s, each slot 3–7s. If the model returns out-of-range, the rewriter is re-called once with a "fit 8–15s" directive; if still off, the storyboard is auto-trimmed and a yellow warning is surfaced.
+- Auto-fills the master prompt + all 3 slot prompts with explicit per-slot duration phrasing ("Create a 5-second image-to-video clip…") and clamps each duration to the slot model's bounds.
+- Full annotation panel renders the structured analysis with **Download .json** and **Download .md** buttons so the long-form research is kept even though slot prompts stay tight.
+- Brand-safe system prompt strips named people, faces, logos, copyrighted music, verbatim script, and distinctive set pieces; keeps pacing, shot types, lighting, framing, emotional arc, CTA pattern, palette feel.
+- Added `host_permissions` for `youtube.com` and `tiktok.com` to allow oEmbed metadata fetches from the side panel.
+
 ## 1.0.22 — Wire the player to whatever URL field the backend returns
 - Ready ✓ no longer leaves the `<video>` blank. Status responses are walked for the finished URL across all common shapes: `video_url`, `url`, `output_url`, `download_url`, `signed_url`, `unsigned_urls[]`, `assets[].url`, `output.url`, `outputs[]`, `videos[]`, `data.url`, `response.url`, etc.
 - The same extractor runs on the sync-path generate response, so providers that finish in one call also bind correctly.
