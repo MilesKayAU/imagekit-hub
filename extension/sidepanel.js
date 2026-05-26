@@ -1353,22 +1353,36 @@ Rules:
 - Audio line: include only if the target model supports synced audio (Veo / Sora). For Grok / Kling, return the line "Audio: n/a".
 - Under 90 words. No preamble, no bullets, no markdown. Return only the prompt text.`;
 
+// Provider is inferred from slug prefix: fal-ai/* → fal, anything else → openrouter.
+// Backend (imagekit-video-generate) routes by the same rule.
+function providerForSlug(slug) {
+  return /^fal-ai\//i.test(slug) ? "fal" : "openrouter";
+}
+
 const VIDEO_MODELS = {
-  "x-ai/grok-imagine-video":   { label: "Grok Imagine Video",  durMin: 1, durMax: 15, durDefault: 8, resolutions: ["480p","720p"],         aspects: ["16:9","9:16","1:1","4:3","3:4","3:2","2:3"], audio: false, pricePerSec: { "480p": 0.05, "720p": 0.07 } },
-  "google/veo-3.1-fast":       { label: "Google Veo 3.1 Fast", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "720p": 0.10, "1080p": 0.10 } },
-  "google/veo-3.1-lite":       { label: "Google Veo 3.1 Lite", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "720p": 0.05, "1080p": 0.05 } },
-  "google/veo-3.1":            { label: "Google Veo 3.1",      durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["1080p"],               aspects: ["16:9","9:16"],                              audio: true,  pricePerSec: { "1080p": 0.20 } },
-  "kwaivgi/kling-v3.0-std":    { label: "Kling v3 Standard",   durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p"],                aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.126 } },
-  "kwaivgi/kling-v3.0-pro":    { label: "Kling v3 Pro",        durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.168, "1080p": 0.168 } },
-  "minimax/hailuo-2.3":        { label: "MiniMax Hailuo 2.3",  durMin: 5, durMax: 10, durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: false, pricePerSec: { "720p": 0.0817, "1080p": 0.0817 } },
-  "alibaba/wan-2.6":           { label: "Alibaba Wan 2.6",     durMin: 4, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: true,  pricePerSec: { "720p": 0.04, "1080p": 0.04 } },
-  "openai/sora-2-pro":         { label: "OpenAI Sora 2 Pro",   durMin: 4, durMax: 12, durDefault: 6, resolutions: ["720p","1080p"],        aspects: ["16:9","9:16","1:1"],                        audio: true,  pricePerSec: { "720p": 0.30, "1080p": 0.30 } },
+  // ── fal.ai ────────────────────────────────────────────────────────────────
+  "fal-ai/veo3/image-to-video":                       { label: "Veo 3",            provider: "fal", durMin: 8, durMax: 8,  durDefault: 8, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],         audio: true,  pricePerSec: { "720p": 0.50, "1080p": 0.75 } },
+  "fal-ai/veo3/fast/image-to-video":                  { label: "Veo 3 Fast",       provider: "fal", durMin: 8, durMax: 8,  durDefault: 8, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],         audio: true,  pricePerSec: { "720p": 0.25, "1080p": 0.40 } },
+  "fal-ai/kling-video/v2.1/standard/image-to-video":  { label: "Kling 2.1 Std",    provider: "fal", durMin: 5, durMax: 10, durDefault: 5, resolutions: ["720p"],         aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.05 } },
+  "fal-ai/kling-video/v2.1/pro/image-to-video":       { label: "Kling 2.1 Pro",    provider: "fal", durMin: 5, durMax: 10, durDefault: 5, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.09, "1080p": 0.09 } },
+  "fal-ai/minimax/hailuo-02/standard/image-to-video": { label: "Hailuo-02",        provider: "fal", durMin: 6, durMax: 10, durDefault: 6, resolutions: ["768p"],         aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "768p": 0.045 } },
+  "fal-ai/luma-dream-machine/ray-2/image-to-video":   { label: "Luma Ray 2",       provider: "fal", durMin: 5, durMax: 9,  durDefault: 5, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.12, "1080p": 0.18 } },
+  "fal-ai/pixverse/v4.5/image-to-video":              { label: "PixVerse 4.5",     provider: "fal", durMin: 5, durMax: 8,  durDefault: 5, resolutions: ["540p","720p","1080p"], aspects: ["16:9","9:16","1:1"], audio: false, pricePerSec: { "540p": 0.03, "720p": 0.04, "1080p": 0.10 } },
+  "fal-ai/wan-pro/image-to-video":                    { label: "Wan Pro",          provider: "fal", durMin: 6, durMax: 6,  durDefault: 6, resolutions: ["720p"],         aspects: ["16:9","9:16","1:1"],   audio: false, pricePerSec: { "720p": 0.08 } },
+  // ── OpenRouter ───────────────────────────────────────────────────────────
+  "x-ai/grok-imagine-video":   { label: "Grok Imagine",     provider: "openrouter", durMin: 1, durMax: 15, durDefault: 8, resolutions: ["480p","720p"],  aspects: ["16:9","9:16","1:1","4:3","3:4","3:2","2:3"], audio: false, pricePerSec: { "480p": 0.05, "720p": 0.07 } },
+  "google/veo-3.1-fast":       { label: "Veo 3.1 Fast",     provider: "openrouter", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16"],                               audio: true,  pricePerSec: { "720p": 0.10, "1080p": 0.10 } },
+  "google/veo-3.1":            { label: "Veo 3.1",          provider: "openrouter", durMin: 4, durMax: 8,  durDefault: 6, resolutions: ["1080p"],        aspects: ["16:9","9:16"],                               audio: true,  pricePerSec: { "1080p": 0.20 } },
+  "kwaivgi/kling-v3.0-std":    { label: "Kling v3 Std",     provider: "openrouter", durMin: 3, durMax: 15, durDefault: 5, resolutions: ["720p"],         aspects: ["16:9","9:16","1:1"],                         audio: false, pricePerSec: { "720p": 0.126 } },
+  "minimax/hailuo-2.3":        { label: "MiniMax Hailuo",   provider: "openrouter", durMin: 5, durMax: 10, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],                         audio: false, pricePerSec: { "720p": 0.0817, "1080p": 0.0817 } },
+  "alibaba/wan-2.6":           { label: "Wan 2.6",          provider: "openrouter", durMin: 4, durMax: 15, durDefault: 5, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],                         audio: true,  pricePerSec: { "720p": 0.04, "1080p": 0.04 } },
+  "openai/sora-2-pro":         { label: "Sora 2 Pro",       provider: "openrouter", durMin: 4, durMax: 12, durDefault: 6, resolutions: ["720p","1080p"], aspects: ["16:9","9:16","1:1"],                         audio: true,  pricePerSec: { "720p": 0.30, "1080p": 0.30 } },
 };
 
 const VIDEO_SLOT_DEFAULTS = [
-  { model: "x-ai/grok-imagine-video", resolution: "720p", aspect: "16:9" },
-  { model: "google/veo-3.1-fast",     resolution: "720p", aspect: "16:9" },
-  { model: "kwaivgi/kling-v3.0-std",  resolution: "720p", aspect: "16:9" },
+  { model: "fal-ai/veo3/image-to-video",                      resolution: "720p", aspect: "16:9" },
+  { model: "fal-ai/kling-video/v2.1/standard/image-to-video", resolution: "720p", aspect: "16:9" },
+  { model: "x-ai/grok-imagine-video",                         resolution: "720p", aspect: "16:9" },
 ];
 
 const video = {
