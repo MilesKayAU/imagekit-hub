@@ -1,49 +1,67 @@
-## Context
+## Goal
 
-readycode.ai is rewriting `/imagekit/connect` into a 3-step page (Account → BYOK key → Copy token + "Open ImageKit"). All signup, BYOK entry, and token issuance happen there — this repo does NOT need any auth, signup, or BYOK UI of its own. Our job is to make sure the **extension's first-run experience** and the **install page** funnel new users into that flow cleanly.
+Make the Respin result iterable and let users mix in their saved Library images as additional inputs — so they can refine a generated image with more direction, or combine a generated image with a saved ingredient/product shot to produce a new result. All inference still goes through the existing `imagekit-generate` edge function (which already accepts an `images: []` array), so the readycode.ai backend needs only one small change.
 
-## 1. Extension side panel — add a "Get started" tab
+## 1. Extension — Refine box on Respin result
 
-A brand-new user opens the side panel today and sees the Respin tab with a disabled Generate button and a tiny "Sign in at readycode.ai" hint. Replace that with a proper onboarding surface.
-
-**`extension/sidepanel.html`**
-- Add a new first tab: `<button class="tab" data-tab="welcome">Get started</button>`.
-- Add `<section id="tab-welcome" class="tab-panel">` with three numbered steps:
-  1. **Create your ReadyCode account** — button → `https://readycode.ai/imagekit/connect` (the connect page now handles signup inline).
-  2. **Add your AI provider key** — short BYOK explainer; same button → `https://readycode.ai/imagekit/connect` (step 2 of that page).
-  3. **Paste your connect token** — button that opens the existing Link dialog (`linkDialog.showModal()`).
-- One-line footer: "Already linked? Switch to Respin."
+**`extension/sidepanel.html`** — inside `#output`, below the `<img>` and the Download/Save row, add a "Refine" block:
+- Textarea: "Tell the AI what to change — e.g. 'warmer lighting, add a wooden tray under it'."
+- Row of buttons: **Refine** (primary), **Use as source** (secondary — pushes the current result back into step 1 as the new source), **Start over** (secondary — clears result).
 
 **`extension/sidepanel.js`**
-- In `bootstrap()`: if `state.token` is missing → programmatically activate the Welcome tab and hide it from the tab bar once a valid token is saved.
-- When a token gets saved via the Link dialog or external message → auto-switch to Respin.
-- Keep the existing top-right "Link" button for re-linking later.
+- New `refineCurrent()`: takes the current `state.result` (data URL of the just-generated image), the refine textarea text, and any extras picked from the library (see §2). Calls the existing `imagekit-generate` endpoint with `images: [resultDataUrl, ...extras]`, `prompt: <refine text>`, `mode: "refine"`, same `provider_id` + `model` as the previous run. On success, replaces `state.result` and the displayed image; the refine box stays open so the user can iterate again. Each refine round shows the previous prompt as muted helper text so the user can see what was built on.
+- Wire **Use as source** → `setSource({ url: dataUrl, dataUrl })` and clear `#output`.
+- The existing **Save to Library** button continues to save whatever is currently shown.
 
-**`extension/sidepanel.css`** — small styles for the welcome step list (no new tokens).
+## 2. Extension — "From Library" picker for source + extras
 
-**`extension/manifest.json`** — bump `version` from `1.0.1` → `1.0.2` so the GitHub release zip and the install page reflect the change.
+**Respin tab (`sidepanel.html`)** — under step 1 (Source image) add a third row:
+- Button **Pick from Library** → opens a new `<dialog id="lib-picker">`.
+- New block under step 1 labelled "Extra reference images (optional)" with a thumbnail strip + "Add from Library" button + "Add upload" file input. Caption: "Combine multiple images — e.g. add an ingredient shot to a scene and tell the AI how to merge them."
 
-**`extension/CHANGELOG.md`** — one-line entry: "1.0.2 — Added Get started onboarding tab that walks new users through signup, BYOK, and linking on readycode.ai/imagekit/connect."
+**Library tab (`sidepanel.html` / `.js`)** — each library card gains two hover buttons:
+- **Use as source** — sets it as the Respin source and switches to the Respin tab.
+- **Add as reference** — appends it to the extras strip on Respin.
 
-## 2. Public install page — match the new connect flow
+**`#lib-picker` dialog (`sidepanel.js`)** — reuses the same fetch + signed-URL logic already in `renderLibrary()`, but renders into the dialog and supports a target (`"source"` or `"extra"`) so the same picker serves both the source button and the extras button. On pick, it stores the signed URL in `state.sourceUrl` / `state.extras[]`.
 
-**`src/routes/install.tsx`** — rewrite the "Then: link ReadyCode" section so it mirrors the new one-page connect flow:
-1. "Open `readycode.ai/imagekit/connect` — sign up (or sign in) inline."
-2. "Add your AI provider key in the same flow (OpenRouter recommended — one key, 100+ models)."
-3. "Copy the connect token shown at the bottom."
-4. "Click the extension icon to open the side panel, then the **Link** button (or the **Paste token** step on the Get started tab) and paste."
+**State changes**
+- `state.extras: string[]` (signed URLs from library or data URLs from uploads).
+- Generate + Refine both send `images: [primary, ...state.extras]` to `imagekit-generate`.
+- Extras strip shows thumbnails with an × to remove individually; cleared on Start over.
 
-No version constant change needed — it already reads from `manifest.json`.
+**`extension/sidepanel.css`** — small styles for the refine block, extras strip, and library card hover actions. No new tokens.
+
+**`extension/manifest.json`** — bump `version` `1.0.2` → `1.0.3`.
+**`extension/CHANGELOG.md`** — one-line entry covering refine + library-as-source + multi-image references.
+
+## 3. Install page
+
+**`src/routes/install.tsx`** — append two bullets to the "What it does" list: "Refine any result with follow-up instructions" and "Pull saved Library images in as references — combine a product shot with an ingredient, etc."
+
+## 4. Readycode.ai side — minimal backend change
+
+Only one thing is needed on the main project; bundle this as a copy-paste prompt for that Lovable project:
+
+> **Prompt for the readycode.ai Lovable project:**
+> The ImageKit Chrome extension now sends multi-image requests to the existing `imagekit-generate` edge function — a generated image plus optional library/upload references — for both first-pass generation and follow-up "refine" rounds. Please make sure `imagekit-generate`:
+> 1. Accepts an `images: string[]` array of length 1–4 (already does for 1; extend to up to 4). Each entry can be a public URL, a Supabase Storage signed URL on the `imagekit-library` bucket, or a `data:` URL.
+> 2. Forwards all of them to the BYOK provider in the order received as multi-image input (OpenRouter image-capable models, Gemini `gemini-3.1-flash-image-preview`, and GPT-Image already support multi-image input — map accordingly per provider).
+> 3. Accepts a new `mode: "refine"` value alongside the existing modes; treat it identically to `lifestyle` for provider routing, but pass the user's refine prompt verbatim with a short system preamble like "Edit the first image according to the instructions, using any additional images as references."
+> 4. Keeps the existing per-user rate limit and BYOK key resolution unchanged.
+> No schema changes, no new tables, no new endpoints. The Library bucket and `imagekit_assets` table the extension already reads from are unchanged.
 
 ## Out of scope
 
-- No signup, BYOK, or auth UI in this repo — readycode.ai owns all of that.
-- No deep-link/postMessage handshake from the connect page back to the extension. The flow stays copy-paste, as agreed on the readycode.ai side ("copy + clear button" path).
-- No changes to API calls, generation, library, GitHub Actions, or release packaging beyond the version bump.
+- No new edge functions, tables, RLS, or storage buckets.
+- No deep-link/postMessage flow.
+- No changes to auth, BYOK UI, or the connect page.
+- No version bump on readycode.ai (backend-only tweak inside the existing edge function).
 
 ## Verification
 
-After build:
-- Fresh unpacked extension (no stored token): Welcome tab is active by default; each of the 3 CTAs opens the right URL / dialog.
-- Paste a valid token via the Link dialog: Welcome tab disappears, Respin becomes active, providers load.
-- `/install` page shows `v1.0.2` and the 4 linking steps match the readycode.ai connect-page flow.
+- Generate an image → refine box appears under result → typing "make it warmer" + Refine produces a new image in place; Save still saves the latest one.
+- "Use as source" pushes the result into step 1 and clears the output.
+- Library tab → "Use as source" on any saved card jumps to Respin with that image loaded.
+- Respin → "Add from Library" → pick 1–2 cards → thumbnails show in extras strip → Generate sends all images; result reflects the combination.
+- `manifest.json` shows `1.0.3`; install page lists the two new bullets.
