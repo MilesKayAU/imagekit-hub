@@ -1,5 +1,8 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.9
+- Right-click **Grab this image** now routes to the active tab: if the UGC tab is open, the grabbed image becomes the UGC source; otherwise it lands in Respin as before.
+
 ## 1.0.8
 - UGC tab: approving a shot now unlocks the next one but no longer auto-generates it — edit the prompt first, then click **Generate shot**.
 
