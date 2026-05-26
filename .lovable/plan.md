@@ -1,76 +1,49 @@
-## Goal
+## Context
 
-Transform this repo's web app (currently a "DO NOT PUBLISH" warning page) into a small marketing subdomain at **imagekit.readycode.ai** that showcases the ReadyCode ImageKit Chrome extension, satisfies Chrome Web Store listing requirements (homepage + privacy URL), and matches ReadyCode's brand (warm cream background, near-black text, vivid orange accent).
+readycode.ai is rewriting `/imagekit/connect` into a 3-step page (Account → BYOK key → Copy token + "Open ImageKit"). All signup, BYOK entry, and token issuance happen there — this repo does NOT need any auth, signup, or BYOK UI of its own. Our job is to make sure the **extension's first-run experience** and the **install page** funnel new users into that flow cleanly.
 
-The extension source (`extension/`) stays untouched. The web app does **not** import any extension code.
+## 1. Extension side panel — add a "Get started" tab
 
-## Memory rule update
+A brand-new user opens the side panel today and sees the Respin tab with a disabled Generate button and a tiny "Sign in at readycode.ai" hint. Replace that with a proper onboarding surface.
 
-The current core rule says "NEVER publish this project." That has to change — the whole point now is to publish the marketing site. Update `mem://index.md`:
+**`extension/sidepanel.html`**
+- Add a new first tab: `<button class="tab" data-tab="welcome">Get started</button>`.
+- Add `<section id="tab-welcome" class="tab-panel">` with three numbered steps:
+  1. **Create your ReadyCode account** — button → `https://readycode.ai/imagekit/connect` (the connect page now handles signup inline).
+  2. **Add your AI provider key** — short BYOK explainer; same button → `https://readycode.ai/imagekit/connect` (step 2 of that page).
+  3. **Paste your connect token** — button that opens the existing Link dialog (`linkDialog.showModal()`).
+- One-line footer: "Already linked? Switch to Respin."
 
-- Remove the "never publish" rule.
-- Add: "Marketing site only. Never bundle anything from `extension/` into `src/`. Privacy and install pages must stay in sync with `extension/PRIVACY.md` and `extension/manifest.json`."
+**`extension/sidepanel.js`**
+- In `bootstrap()`: if `state.token` is missing → programmatically activate the Welcome tab and hide it from the tab bar once a valid token is saved.
+- When a token gets saved via the Link dialog or external message → auto-switch to Respin.
+- Keep the existing top-right "Link" button for re-linking later.
 
-## Pages (3)
+**`extension/sidepanel.css`** — small styles for the welcome step list (no new tokens).
 
-```text
-/            Home — hero, what it does, how it works, install CTA, ReadyCode connection
-/install     Step-by-step install (Web Store + manual from GitHub release), link readycode.ai
-/privacy     Privacy policy mirroring extension/PRIVACY.md, with last-updated date
-```
+**`extension/manifest.json`** — bump `version` from `1.0.1` → `1.0.2` so the GitHub release zip and the install page reflect the change.
 
-Each route is its own file under `src/routes/` with its own `head()` (title, description, og:title, og:description, canonical pointing to `https://imagekit.readycode.ai/...`). Add a shared header (logo + nav) and footer (GitHub link, Privacy, ReadyCode.ai) inside `src/routes/__root.tsx`.
+**`extension/CHANGELOG.md`** — one-line entry: "1.0.2 — Added Get started onboarding tab that walks new users through signup, BYOK, and linking on readycode.ai/imagekit/connect."
 
-## Home page sections
+## 2. Public install page — match the new connect flow
 
-1. **Hero** — "ReadyCode ImageKit — AI image generation in your browser's side panel." Primary CTA "Install for Chrome", secondary "View on GitHub".
-2. **What it does** — three cards: Generate · Respin · Save to Library.
-3. **How it works** — 3-step strip: Install → Bring your own OpenRouter key (BYOK) → Connect ReadyCode account to save to your Library.
-4. **Open source & free** — MIT license badge, "Free core, future paid tiers for advanced features" line, BYOK explained in one sentence.
-5. **ReadyCode connection** — short block: "Connects to readycode.ai to store your generated images. Free today, freemium tiers coming." Link to readycode.ai.
-6. **Final CTA** — install + GitHub.
+**`src/routes/install.tsx`** — rewrite the "Then: link ReadyCode" section so it mirrors the new one-page connect flow:
+1. "Open `readycode.ai/imagekit/connect` — sign up (or sign in) inline."
+2. "Add your AI provider key in the same flow (OpenRouter recommended — one key, 100+ models)."
+3. "Copy the connect token shown at the bottom."
+4. "Click the extension icon to open the side panel, then the **Link** button (or the **Paste token** step on the Get started tab) and paste."
 
-## Design system
+No version constant change needed — it already reads from `manifest.json`.
 
-Lock these tokens in `src/styles.css` as the only source of color. All components reference semantic tokens (`bg-background`, `text-foreground`, `bg-primary`, `text-primary-foreground`, `text-muted-foreground`).
+## Out of scope
 
-```text
---background        #f5f3ee  (warm cream)
---foreground        #1a1a1a  (near-black)
---primary           #e85d3a  (ReadyCode orange)
---primary-foreground #ffffff
---muted             #ebe8e1
---muted-foreground  #6b6b6b  (derived from #94a3b8 family, warmed)
---border            #e0ddd5
---accent            #1a1a1a
---radius            0.75rem
-```
+- No signup, BYOK, or auth UI in this repo — readycode.ai owns all of that.
+- No deep-link/postMessage handshake from the connect page back to the extension. The flow stays copy-paste, as agreed on the readycode.ai side ("copy + clear button" path).
+- No changes to API calls, generation, library, GitHub Actions, or release packaging beyond the version bump.
 
-Typography: Inter (already available) — generous weights, large display sizes on the hero. Subtle hover lift on cards, no heavy motion.
+## Verification
 
-## Files to add / change
-
-- `src/styles.css` — replace color tokens with the palette above (light only; dark mode out of scope for v1).
-- `src/routes/__root.tsx` — drop the "DO NOT PUBLISH" framing, add `<SiteHeader />` + `<SiteFooter />` around `<Outlet />`, set sitewide og:type/og:site_name, JSON-LD Organization.
-- `src/routes/index.tsx` — replace placeholder with Home sections above.
-- `src/routes/install.tsx` — new.
-- `src/routes/privacy.tsx` — new, content mirrored from `extension/PRIVACY.md`.
-- `src/components/site/SiteHeader.tsx`, `SiteFooter.tsx`, `Section.tsx`, `FeatureCard.tsx`, `StepRow.tsx`, `CTAButtons.tsx` — small presentational components.
-- `public/og-image.jpg` — generated 1200×630 share image for the home route only (leaf-level `og:image`; never on `__root.tsx`).
-- `public/favicon.ico` + `public/icon-512.png` — reuse `extension/icon.png` resized.
-- `public/robots.txt` — `Allow: /`, `Sitemap: https://imagekit.readycode.ai/sitemap.xml`.
-- `src/routes/sitemap[.]xml.tsx` — server route returning the three URLs.
-- `mem://index.md` — updated per "Memory rule update" above.
-
-## What we explicitly do NOT do
-
-- No backend, no Supabase calls, no auth on the marketing site.
-- No imports from `extension/`. `vite.config.ts` stays as-is.
-- No "Edit with Lovable" badge changes in this plan (separate decision; requires Pro).
-- No custom-domain wiring in code — that's handled in Project Settings once the user publishes.
-
-## Post-implementation steps the user does
-
-1. Publish the project (Publish button).
-2. In Project Settings → Domains, confirm `imagekit.readycode.ai` is connected (already shown in project URLs).
-3. Submit/refresh the Chrome Web Store listing with `https://imagekit.readycode.ai` as homepage and `https://imagekit.readycode.ai/privacy` as privacy policy URL.
+After build:
+- Fresh unpacked extension (no stored token): Welcome tab is active by default; each of the 3 CTAs opens the right URL / dialog.
+- Paste a valid token via the Link dialog: Welcome tab disappears, Respin becomes active, providers load.
+- `/install` page shows `v1.0.2` and the 4 linking steps match the readycode.ai connect-page flow.

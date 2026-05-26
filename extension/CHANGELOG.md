@@ -1,5 +1,9 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.2 — Get started onboarding tab
+- New default **Get started** tab for first-run users with a 3-step flow: create a ReadyCode account, add your BYOK AI key, paste your connect token. All steps point at `readycode.ai/imagekit/connect`, which now handles signup, BYOK entry, and token issuance inline.
+- Auto-hides once a valid token is saved and switches you straight to Respin. The top-right **Link** button stays available for re-linking.
+
 ## 1.0.1 — Save to Library 401 fix
 - Send the Supabase `apikey` header on every edge-function call (was missing on `imagekit-generate` and `imagekit-save`), which was causing the Supabase functions gateway to reject **Save to Library** with HTTP 401 before the function ran.
 - On 401, clear the stored ReadyCode token and surface a clear "Session expired — click Link and paste a fresh token from readycode.ai/imagekit/connect." message instead of a bare `HTTP 401`.

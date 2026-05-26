@@ -103,13 +103,28 @@ function imageModelForProvider(provider) {
 // --- tabs ---
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
-    const tab = btn.dataset.tab;
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    $(`tab-${tab}`).classList.add("active");
-    if (tab === "library") renderLibrary();
+    activateTab(btn.dataset.tab);
   });
 });
+
+function activateTab(tab) {
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  const panel = $(`tab-${tab}`);
+  if (panel) panel.classList.add("active");
+  if (tab === "library") renderLibrary();
+}
+
+function updateWelcomeVisibility() {
+  const welcomeTab = document.querySelector('.tab[data-tab="welcome"]');
+  if (!welcomeTab) return;
+  if (state.token) {
+    welcomeTab.classList.add("hidden");
+    if (welcomeTab.classList.contains("active")) activateTab("respin");
+  } else {
+    welcomeTab.classList.remove("hidden");
+  }
+}
 
 // --- source handling ---
 function setSource({ url = null, dataUrl = null }) {
@@ -292,9 +307,12 @@ async function bootstrap() {
   if (!state.token) {
     setAuth("Sign in at readycode.ai", "err");
     $("provider-hint").innerHTML = `Open <a href="https://readycode.ai/imagekit" target="_blank">readycode.ai/imagekit</a> in this browser to link the extension.`;
+    updateWelcomeVisibility();
+    activateTab("welcome");
     return;
   }
   setAuth("Linked to ReadyCode", "ok");
+  updateWelcomeVisibility();
   try {
     state.providers = await loadProviders();
     const sel = $("provider");
@@ -339,3 +357,15 @@ document.getElementById("link-save").addEventListener("click", async () => {
   linkDialog.close();
   setStatus("Linked ✓", "success");
 });
+
+// --- Welcome tab CTAs ---
+document.querySelectorAll(".welcome-cta[data-open]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const url = btn.getAttribute("data-open");
+    if (url) chrome.tabs.create({ url });
+  });
+});
+const welcomePasteBtn = document.getElementById("welcome-paste");
+if (welcomePasteBtn) welcomePasteBtn.addEventListener("click", () => linkDialog.showModal());
+const welcomeGoRespin = document.getElementById("welcome-go-respin");
+if (welcomeGoRespin) welcomeGoRespin.addEventListener("click", (e) => { e.preventDefault(); activateTab("respin"); });

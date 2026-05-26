@@ -33,12 +33,38 @@
 
 
   <nav class="tabs">
+    <button class="tab" data-tab="welcome">Get started</button>
     <button class="tab active" data-tab="respin">Respin</button>
     <button class="tab" data-tab="library">Library</button>
     <button class="tab" data-tab="about">About</button>
   </nav>
 
   <main>
+    <section id="tab-welcome" class="tab-panel">
+      <div class="welcome">
+        <h2 style="margin:0 0 4px;font-size:16px;">Welcome to ReadyCode ImageKit</h2>
+        <p class="muted" style="margin:0 0 14px;">Three quick steps and you're ready to generate. Everything runs on your own AI key — ReadyCode never bills for image inference.</p>
+        <ol class="welcome-steps">
+          <li>
+            <strong>Create your ReadyCode account</strong>
+            <p class="muted">Signup happens inline on the connect page — no extra accounts.</p>
+            <button type="button" class="secondary welcome-cta" data-open="https://readycode.ai/imagekit/connect">Open signup ↗</button>
+          </li>
+          <li>
+            <strong>Add your AI provider key</strong>
+            <p class="muted">OpenRouter recommended — one key covers Nano Banana, GPT-Image, Flux, and more.</p>
+            <button type="button" class="secondary welcome-cta" data-open="https://readycode.ai/imagekit/connect">Add BYOK key ↗</button>
+          </li>
+          <li>
+            <strong>Paste your connect token</strong>
+            <p class="muted">Copy the <code>RC1.…</code> token shown at the bottom of the connect page, then paste it here.</p>
+            <button type="button" class="primary" id="welcome-paste">Paste token</button>
+          </li>
+        </ol>
+        <p class="muted" style="margin-top:14px;">Already linked? Switch to the <a href="#" id="welcome-go-respin">Respin</a> tab.</p>
+      </div>
+    </section>
+
     <section id="tab-respin" class="tab-panel active">
       <div class="block">
         <label class="block-label">1. Source image</label>
