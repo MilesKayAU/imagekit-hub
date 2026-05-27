@@ -2610,7 +2610,63 @@ function rvDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-function rvStatus(msg, kind = "info") { videoStatus(msg, kind); }
+function rvStatus(msg, kind = "info") {
+  const el = $("rv-status");
+  if (!el) { videoStatus(msg, kind); return; }
+  if (!msg) { el.classList.add("hidden"); el.textContent = ""; return; }
+  el.className = `status ${kind}`;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function rvEscape(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function rvRenderStoryboard(result) {
+  const wrap = $("rv-storyboard-wrap");
+  const handoff = $("rv-handoff-wrap");
+  if (!result?.slot_prompts?.length) {
+    wrap.style.display = "none";
+    handoff.style.display = "none";
+    return;
+  }
+  const b = result.condensed?.beats || {};
+  $("rv-beats").innerHTML = [
+    `<div><strong>Total:</strong> ${rvSumDuration(result)}s · <strong>Source:</strong> ${rvEscape(result.__meta?.source || "text-rewriter")}</div>`,
+    b.hook_0_2s     ? `<div><strong>0–2s Hook:</strong> ${rvEscape(b.hook_0_2s)}</div>`        : "",
+    b.reveal_2_5s   ? `<div><strong>2–5s Reveal:</strong> ${rvEscape(b.reveal_2_5s)}</div>`    : "",
+    b.benefit_5_10s ? `<div><strong>5–10s Benefit:</strong> ${rvEscape(b.benefit_5_10s)}</div>`: "",
+    b.cta_10_15s    ? `<div><strong>10–15s CTA:</strong> ${rvEscape(b.cta_10_15s)}</div>`      : "",
+    result.style?.pacing   ? `<div class="muted">Pacing: ${rvEscape(result.style.pacing)}</div>`     : "",
+    result.style?.lighting ? `<div class="muted">Lighting: ${rvEscape(result.style.lighting)}</div>`: "",
+    result.audio_intent    ? `<div class="muted">Audio: ${rvEscape(result.audio_intent)}</div>`     : "",
+  ].filter(Boolean).join("");
+
+  $("rv-slots").innerHTML = result.slot_prompts.map((sp, i) => `
+    <div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px;margin-bottom:8px;background:#fff;">
+      <div style="font-weight:600;font-size:12px;margin-bottom:4px;">Slot ${i + 1} · ${rvEscape(sp.segment || `${sp.duration_s || 5}s`)} (${sp.duration_s || 5}s)</div>
+      <label style="display:block;font-size:11px;margin-bottom:4px;">Image prompt
+        <textarea data-rv-slot="${i}" data-rv-field="image_prompt" rows="2" style="width:100%;font-size:11px;">${rvEscape(sp.image_prompt || "")}</textarea>
+      </label>
+      <label style="display:block;font-size:11px;">Video prompt
+        <textarea data-rv-slot="${i}" data-rv-field="video_prompt" rows="3" style="width:100%;font-size:11px;">${rvEscape(sp.video_prompt || "")}</textarea>
+      </label>
+    </div>
+  `).join("");
+
+  // Bind inline edits back into rvLastResult so handoff uses fresh text.
+  $("rv-slots").querySelectorAll("textarea[data-rv-slot]").forEach((ta) => {
+    ta.addEventListener("input", () => {
+      const i = Number(ta.dataset.rvSlot);
+      const field = ta.dataset.rvField;
+      if (rvLastResult?.slot_prompts?.[i]) rvLastResult.slot_prompts[i][field] = ta.value;
+    });
+  });
+
+  wrap.style.display = "block";
+  handoff.style.display = "block";
+}
 
 let rvLastResult = null;
 
