@@ -1,5 +1,13 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.29 — Video Marketing tab + Gemini "watch the video" path
+- **New top-level tab: 📺 Video Marketing.** Reference-video → storyboard moves out of the Image → Video tab into its own analysis/ideation surface (script, beats, shotlist, image prompts, video prompts, full annotation). No generation happens here.
+- **Handoff buttons** push the analysis into the existing generation tabs without auto-running anything: `↗ Send image prompt → Respin`, `↗ Send image prompts → UGC`, `↗ Send to Image → Video`. The user clicks Generate on the target tab.
+- **Analysis depth selector.** *Watch the video* opt-in calls the new `imagekit-analyze-video` edge function on the ReadyCode site (Gemini direct YouTube/Shorts ingestion). *Metadata only* keeps the existing fast oEmbed + `imagekit-enhance-prompt` rewriter path.
+- **Safe fallback.** If the Gemini watcher is unavailable (404, error, unsupported platform), the extension automatically falls back to the metadata path and shows a yellow status — the feature never blocks on the new edge function being deployed.
+- **Editable storyboard preview.** Per-slot image/video prompts render as inline-editable cards before handoff so you can tweak before pushing.
+- The old in-Video reference-video panel is gone; the Image → Video tab now links users to the new Marketing tab.
+
 ## 1.0.28 — Library renders saved videos + de-duped Save button
 - The Library tab now detects video assets (`kind=video`, `video/*` mime, or `.mp4/.webm/.mov/.m4v` storage path) and renders them in an inline `<video controls>` player with a "▶ video" badge instead of a broken `<img>` icon. Each video card has `Open` and `Download` buttons.
 - "Save to Library" on each Image → Video slot is now idempotent: the button flips to `Saving…` (disabled) while in flight and to `Saved ✓` (disabled) afterwards, so double-clicks no longer create duplicate library rows.
