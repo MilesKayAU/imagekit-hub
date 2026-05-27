@@ -286,29 +286,7 @@
         <label class="block-label">2. Guided prompt (Subject → Motion → Camera → Environment → Style → Timing → Audio)</label>
         <p class="muted" style="margin:0 0 6px;">Grok Imagine Video rewards explicit motion + camera + pacing instructions. Fill what matters — empty fields are dropped.</p>
         <div class="hint" style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:8px 10px;margin:0 0 10px;font-size:12px;line-height:1.4;">
-          <strong>📺 Reference Video → Product Ad (8–15s)</strong><br/>
-          Paste a YouTube / TikTok / Shorts URL — AI condenses the structure into a brand-safe storyboard and fills the 3 slots below.
-          <div class="row" style="margin-top:6px;">
-            <input id="rv-url" type="url" placeholder="https://youtube.com/watch?v=… or tiktok.com/@user/video/…" style="flex:1;" />
-          </div>
-          <div class="row" style="margin-top:6px;">
-            <label style="flex:1;font-size:11px;">Style mode
-              <select id="rv-mode" style="width:100%;">
-                <option value="safe">Safe Original — structure only (recommended)</option>
-                <option value="closer">Closer Style Match — pacing + shot language</option>
-                <option value="prompt_only">Prompt Only — don't auto-fill slots</option>
-              </select>
-            </label>
-            <button id="rv-analyze" class="primary" type="button" title="Inspired by structure and pacing only. Won't copy faces, logos, music, captions, or unique scenes.">Analyze &amp; build 8–15s ad</button>
-          </div>
-          <details id="rv-annotation-wrap" style="margin-top:8px;display:none;">
-            <summary style="cursor:pointer;font-weight:600;">Full annotation</summary>
-            <div class="row" style="margin:6px 0;">
-              <button id="rv-download-json" class="secondary" type="button">⬇ Download .json</button>
-              <button id="rv-download-md" class="secondary" type="button">⬇ Download .md</button>
-            </div>
-            <pre id="rv-annotation" style="background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:8px;max-height:280px;overflow:auto;font-size:11px;white-space:pre-wrap;"></pre>
-          </details>
+          Need to base this on an existing video? Use the new <strong>Video Marketing</strong> tab to analyze a YouTube / TikTok / Shorts URL, then push the script + prompts here.
         </div>
         <div class="video-grid">
           <label>Subject<input id="vp-subject" type="text" placeholder="What is in the image, kept locked" /></label>
