@@ -2131,6 +2131,10 @@ async function downloadVideoSlot(i) {
 async function saveVideoSlot(i) {
   const slot = video.slots[i];
   if (!slot?.result?.video_url) return;
+  if (slot.saving) { videoStatus(`Slot ${i + 1} is already saving…`, "info"); return; }
+  if (slot.saved) { videoStatus(`Slot ${i + 1} already saved to library.`, "info"); return; }
+  slot.saving = true;
+  renderVideoSlots();
   videoStatus(`Saving slot ${i + 1} to library…`, "info");
   try {
     await api("imagekit-save", {
@@ -2158,6 +2162,9 @@ async function saveVideoSlot(i) {
     videoStatus(`Slot ${i + 1} saved ✓`, "success");
   } catch (e) {
     videoStatus(`Save failed: ${e.message}`, "error");
+  } finally {
+    slot.saving = false;
+    renderVideoSlots();
   }
 }
 
