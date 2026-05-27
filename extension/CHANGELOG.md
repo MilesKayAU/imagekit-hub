@@ -1,5 +1,10 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.30 — Video Marketing "Watch the video" is BYOK
+- **No more Lovable AI for video analysis.** The `Watch the video` path now sends the caller's `provider_id` to `imagekit-analyze-video`; the edge function uses the user's own BYOK key (OpenRouter or Google AI Studio direct) to ask a video-capable model (default `google/gemini-2.5-pro`) to ingest the YouTube/Shorts URL. ReadyCode never bills inference.
+- **Reference edge function rewritten** (`supabase/functions/imagekit-analyze-video/index.ts`) — OpenRouter + direct Google branches, clear errors when the user hasn't added a video-capable key, and `fallback: "text_only"` on upstream failure so the metadata path still works.
+- **Fixes the HTTP 404** users were seeing — the function must be deployed in the ReadyCode Lovable project (this repo is extension-only).
+
 ## 1.0.29 — Video Marketing tab + Gemini "watch the video" path
 - **New top-level tab: 📺 Video Marketing.** Reference-video → storyboard moves out of the Image → Video tab into its own analysis/ideation surface (script, beats, shotlist, image prompts, video prompts, full annotation). No generation happens here.
 - **Handoff buttons** push the analysis into the existing generation tabs without auto-running anything: `↗ Send image prompt → Respin`, `↗ Send image prompts → UGC`, `↗ Send to Image → Video`. The user clicks Generate on the target tab.
