@@ -1,5 +1,9 @@
 # ReadyCode ImageKit — Changelog
 
+## 1.0.28 — Library renders saved videos + de-duped Save button
+- The Library tab now detects video assets (`kind=video`, `video/*` mime, or `.mp4/.webm/.mov/.m4v` storage path) and renders them in an inline `<video controls>` player with a "▶ video" badge instead of a broken `<img>` icon. Each video card has `Open` and `Download` buttons.
+- "Save to Library" on each Image → Video slot is now idempotent: the button flips to `Saving…` (disabled) while in flight and to `Saved ✓` (disabled) afterwards, so double-clicks no longer create duplicate library rows.
+
 ## 1.0.27 — Stay faithful to source image (Image → Video)
 - Each Image → Video slot now has a "Stay faithful to source image" toggle (default ON). When enabled, the extension prepends a lock-frame instruction to the prompt that tells the model to treat the uploaded image as a pixel-accurate first frame and only add motion — no redesigning the subject, no new objects, no new hands/people. Especially important for Grok Imagine, which otherwise drifts off the reference.
 - Each slot now shows a small thumbnail of the source image being submitted, so it's visually obvious which reference is going to the model.
