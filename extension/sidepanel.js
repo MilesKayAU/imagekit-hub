@@ -2478,7 +2478,7 @@ async function rvCallAnalyzer(parsed, directive, mode, audioCapable) {
   }
 }
 
-async function rvAnalyze(url, mode) {
+async function rvAnalyze(url, mode, depth) {
   const parsed = rvParseUrl(url);
   if (!parsed) throw new Error("That URL doesn't look valid.");
   rvStatus(`Fetching ${parsed.platform} metadata…`, "info");
@@ -2508,17 +2508,23 @@ async function rvAnalyze(url, mode) {
     "RETURN ONLY THE JSON OBJECT specified above. No prose. No code fences.",
   ].filter(Boolean).join("\n");
 
-  // Prefer the Gemini-backed analyzer for platforms it can ingest (YouTube /
-  // Shorts). On 404 / fallback / error we silently use the metadata rewriter.
+  // Gemini direct ingestion is opt-in via depth=watch and only works for
+  // YouTube / Shorts. On any failure or unsupported platform we fall back to
+  // the existing metadata-only text rewriter path and surface a yellow status.
   let result = null;
   let usedAnalyzer = false;
-  if (parsed.platform === "youtube" || parsed.platform === "shorts") {
+  let analyzerFellBack = false;
+  const wantWatch = depth === "watch" && (parsed.platform === "youtube" || parsed.platform === "shorts");
+  if (wantWatch) {
     rvStatus("Watching the reference with Gemini…", "info");
     result = await rvCallAnalyzer(parsed, directive, mode, audioCapable);
     if (result) usedAnalyzer = true;
+    else analyzerFellBack = true;
   }
   if (!result) {
-    rvStatus("Analyzing from metadata…", "info");
+    rvStatus(analyzerFellBack
+      ? "Gemini watcher unavailable — falling back to metadata analysis…"
+      : "Analyzing from metadata…", analyzerFellBack ? "warn" : "info");
     result = await rvCallRewriter(providerId, directive);
   }
 
@@ -2537,7 +2543,11 @@ async function rvAnalyze(url, mode) {
     if (total < 8 || total > 15) { result = rvClampTo15(result); trimmed = true; }
   }
 
-  result.__meta = { parsed, oembed: meta, mode, trimmed, source: usedAnalyzer ? "gemini-video" : "text-rewriter" };
+  result.__meta = {
+    parsed, oembed: meta, mode, trimmed,
+    source: usedAnalyzer ? "gemini-video" : "text-rewriter",
+    analyzerFellBack,
+  };
   return result;
 }
 
@@ -2610,7 +2620,63 @@ function rvDownload(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-function rvStatus(msg, kind = "info") { videoStatus(msg, kind); }
+function rvStatus(msg, kind = "info") {
+  const el = $("rv-status");
+  if (!el) { videoStatus(msg, kind); return; }
+  if (!msg) { el.classList.add("hidden"); el.textContent = ""; return; }
+  el.className = `status ${kind}`;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+}
+
+function rvEscape(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function rvRenderStoryboard(result) {
+  const wrap = $("rv-storyboard-wrap");
+  const handoff = $("rv-handoff-wrap");
+  if (!result?.slot_prompts?.length) {
+    wrap.style.display = "none";
+    handoff.style.display = "none";
+    return;
+  }
+  const b = result.condensed?.beats || {};
+  $("rv-beats").innerHTML = [
+    `<div><strong>Total:</strong> ${rvSumDuration(result)}s · <strong>Source:</strong> ${rvEscape(result.__meta?.source || "text-rewriter")}</div>`,
+    b.hook_0_2s     ? `<div><strong>0–2s Hook:</strong> ${rvEscape(b.hook_0_2s)}</div>`        : "",
+    b.reveal_2_5s   ? `<div><strong>2–5s Reveal:</strong> ${rvEscape(b.reveal_2_5s)}</div>`    : "",
+    b.benefit_5_10s ? `<div><strong>5–10s Benefit:</strong> ${rvEscape(b.benefit_5_10s)}</div>`: "",
+    b.cta_10_15s    ? `<div><strong>10–15s CTA:</strong> ${rvEscape(b.cta_10_15s)}</div>`      : "",
+    result.style?.pacing   ? `<div class="muted">Pacing: ${rvEscape(result.style.pacing)}</div>`     : "",
+    result.style?.lighting ? `<div class="muted">Lighting: ${rvEscape(result.style.lighting)}</div>`: "",
+    result.audio_intent    ? `<div class="muted">Audio: ${rvEscape(result.audio_intent)}</div>`     : "",
+  ].filter(Boolean).join("");
+
+  $("rv-slots").innerHTML = result.slot_prompts.map((sp, i) => `
+    <div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px;margin-bottom:8px;background:#fff;">
+      <div style="font-weight:600;font-size:12px;margin-bottom:4px;">Slot ${i + 1} · ${rvEscape(sp.segment || `${sp.duration_s || 5}s`)} (${sp.duration_s || 5}s)</div>
+      <label style="display:block;font-size:11px;margin-bottom:4px;">Image prompt
+        <textarea data-rv-slot="${i}" data-rv-field="image_prompt" rows="2" style="width:100%;font-size:11px;">${rvEscape(sp.image_prompt || "")}</textarea>
+      </label>
+      <label style="display:block;font-size:11px;">Video prompt
+        <textarea data-rv-slot="${i}" data-rv-field="video_prompt" rows="3" style="width:100%;font-size:11px;">${rvEscape(sp.video_prompt || "")}</textarea>
+      </label>
+    </div>
+  `).join("");
+
+  // Bind inline edits back into rvLastResult so handoff uses fresh text.
+  $("rv-slots").querySelectorAll("textarea[data-rv-slot]").forEach((ta) => {
+    ta.addEventListener("input", () => {
+      const i = Number(ta.dataset.rvSlot);
+      const field = ta.dataset.rvField;
+      if (rvLastResult?.slot_prompts?.[i]) rvLastResult.slot_prompts[i][field] = ta.value;
+    });
+  });
+
+  wrap.style.display = "block";
+  handoff.style.display = "block";
+}
 
 let rvLastResult = null;
 
@@ -2618,22 +2684,23 @@ $("rv-analyze").addEventListener("click", async () => {
   const url = $("rv-url").value.trim();
   if (!url) { rvStatus("Paste a YouTube / TikTok / Shorts URL first.", "error"); return; }
   const mode = $("rv-mode").value;
+  const depth = ($("rv-depth") && $("rv-depth").value) || "metadata";
   const btn = $("rv-analyze");
   btn.disabled = true;
   try {
-    const result = await rvAnalyze(url, mode);
+    const result = await rvAnalyze(url, mode, depth);
     rvLastResult = result;
     const md = rvBuildMarkdown(result);
     $("rv-annotation").textContent = md;
-    $("rv-annotation-wrap").style.display = "block";
-    $("rv-annotation-wrap").open = true;
-    if (mode === "prompt_only") {
-      rvStatus(`Analysis ready (${rvSumDuration(result)}s). Slots untouched — review the annotation and copy prompts manually.`, "success");
+    rvRenderStoryboard(result);
+    const total = rvSumDuration(result);
+    const src = result.__meta?.source === "gemini-video" ? "watched with Gemini" : "metadata only";
+    if (result.__meta?.analyzerFellBack) {
+      rvStatus(`Gemini watcher unavailable — used metadata fallback (${total}s). Review the storyboard then push to a generation tab.`, "warn");
+    } else if (result.__meta?.trimmed) {
+      rvStatus(`Trimmed to ${total}s — review before pushing to a generation tab.`, "warn");
     } else {
-      rvApplyStoryboard(result);
-      const total = rvSumDuration(result);
-      if (result.__meta?.trimmed) rvStatus(`Trimmed to ${total}s — review before generating.`, "warn");
-      else rvStatus(`Storyboard applied (${total}s across 3 slots). Review and Generate.`, "success");
+      rvStatus(`Storyboard ready (${total}s, ${src}). Review and push to a generation tab when ready.`, "success");
     }
   } catch (e) {
     console.error("[reference video]", e);
@@ -2641,6 +2708,34 @@ $("rv-analyze").addEventListener("click", async () => {
   } finally {
     btn.disabled = false;
   }
+});
+
+// --- Handoff buttons (analysis only, no generation) ---
+$("rv-send-video").addEventListener("click", () => {
+  if (!rvLastResult) { rvStatus("Run an analysis first.", "error"); return; }
+  rvApplyStoryboard(rvLastResult);
+  activateTab("video");
+  videoStatus(`Storyboard pushed from Video Marketing (${rvSumDuration(rvLastResult)}s). Review the 3 slots and click Generate when ready.`, "success");
+});
+
+$("rv-send-respin").addEventListener("click", () => {
+  if (!rvLastResult?.slot_prompts?.length) { rvStatus("Run an analysis first.", "error"); return; }
+  const first = rvLastResult.slot_prompts[0];
+  const txt = first?.image_prompt || first?.video_prompt || "";
+  if (!txt) { rvStatus("No image prompt to send.", "error"); return; }
+  const target = $("prompt");
+  if (target) target.value = txt;
+  activateTab("respin");
+});
+
+$("rv-send-ugc").addEventListener("click", () => {
+  if (!rvLastResult?.slot_prompts?.length) { rvStatus("Run an analysis first.", "error"); return; }
+  const lines = rvLastResult.slot_prompts.map((sp, i) =>
+    `Shot ${i + 1} (${sp.segment || `${sp.duration_s}s`}): ${sp.image_prompt || sp.video_prompt || ""}`
+  );
+  const target = $("ugc-master-prompt");
+  if (target) target.value = lines.join("\n\n");
+  activateTab("ugc");
 });
 
 $("rv-download-json").addEventListener("click", () => {
