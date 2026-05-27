@@ -603,7 +603,7 @@ $("save").addEventListener("click", async () => {
 
 // --- library tab ---
 async function fetchLibraryRows(limit = 60) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/imagekit_assets?select=id,storage_path,kind,created_at,source_metadata&order=created_at.desc&limit=${limit}`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/imagekit_assets?select=id,storage_path,kind,mime_type,created_at,source_metadata&order=created_at.desc&limit=${limit}`, {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${state.token}` },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -618,6 +618,14 @@ async function signedUrlFor(storagePath) {
   return su?.signedURL ? `${SUPABASE_URL}/storage/v1${su.signedURL}` : null;
 }
 
+function isVideoAsset(row) {
+  if (row?.kind === "video") return true;
+  const mt = String(row?.mime_type || "").toLowerCase();
+  if (mt.startsWith("video/")) return true;
+  const p = String(row?.storage_path || "").toLowerCase();
+  return /\.(mp4|webm|mov|m4v)(\?|$)/.test(p);
+}
+
 async function renderLibrary() {
   const grid = $("library-grid");
   grid.innerHTML = "<p class='muted'>Loading…</p>";
@@ -629,42 +637,84 @@ async function renderLibrary() {
     for (const r of rows) {
       const card = document.createElement("div");
       card.className = "asset";
-      const img = document.createElement("img");
       const url = await signedUrlFor(r.storage_path);
-      if (url) img.src = url;
-      img.onclick = () => { if (img.src) chrome.tabs.create({ url: img.src }); };
-      card.appendChild(img);
+      const isVid = isVideoAsset(r);
+      let media;
+      if (isVid) {
+        media = document.createElement("video");
+        if (url) media.src = url;
+        media.controls = true;
+        media.preload = "metadata";
+        media.playsInline = true;
+        media.muted = true;
+        media.style.background = "#000";
+        // Show a small "video" badge over the player so the card is recognizable
+        // even before the first frame loads.
+        const badge = document.createElement("span");
+        badge.textContent = "▶ video";
+        badge.style.cssText = "position:absolute;top:4px;left:4px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;padding:2px 6px;border-radius:3px;pointer-events:none;";
+        card.style.position = "relative";
+        card.appendChild(badge);
+      } else {
+        media = document.createElement("img");
+        if (url) media.src = url;
+        media.onclick = () => { if (media.src) chrome.tabs.create({ url: media.src }); };
+      }
+      card.appendChild(media);
       const actions = document.createElement("div");
       actions.className = "actions";
-      const useBtn = document.createElement("button");
-      useBtn.type = "button";
-      useBtn.textContent = "Use as source";
-      useBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        if (!url) return;
-        setSource({ url, dataUrl: url });
-        activateTab("respin");
-      });
-      const addBtn = document.createElement("button");
-      addBtn.type = "button";
-      addBtn.textContent = "Add as reference";
-      addBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        if (!url) return;
-        addExtra(url, url);
-        activateTab("respin");
-      });
-      const vidBtn = document.createElement("button");
-      vidBtn.type = "button";
-      vidBtn.textContent = "→ Video";
-      vidBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        if (!url) return;
-        sendImageToVideo({ url, dataUrl: url });
-      });
-      actions.appendChild(useBtn);
-      actions.appendChild(addBtn);
-      actions.appendChild(vidBtn);
+      if (isVid) {
+        const openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.textContent = "Open";
+        openBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (url) chrome.tabs.create({ url });
+        });
+        const dlBtn = document.createElement("button");
+        dlBtn.type = "button";
+        dlBtn.textContent = "Download";
+        dlBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (!url) return;
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = (r.storage_path?.split("/").pop()) || "video.mp4";
+          document.body.appendChild(a); a.click(); a.remove();
+        });
+        actions.appendChild(openBtn);
+        actions.appendChild(dlBtn);
+      } else {
+        const useBtn = document.createElement("button");
+        useBtn.type = "button";
+        useBtn.textContent = "Use as source";
+        useBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (!url) return;
+          setSource({ url, dataUrl: url });
+          activateTab("respin");
+        });
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.textContent = "Add as reference";
+        addBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (!url) return;
+          addExtra(url, url);
+          activateTab("respin");
+        });
+        const vidBtn = document.createElement("button");
+        vidBtn.type = "button";
+        vidBtn.textContent = "→ Video";
+        vidBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (!url) return;
+          sendImageToVideo({ url, dataUrl: url });
+        });
+        actions.appendChild(useBtn);
+        actions.appendChild(addBtn);
+        actions.appendChild(vidBtn);
+      }
       card.appendChild(actions);
       grid.appendChild(card);
     }
