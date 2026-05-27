@@ -2459,6 +2459,7 @@ async function rvCallRewriter(providerId, directive) {
 async function rvCallAnalyzer(parsed, directive, mode, audioCapable) {
   try {
     const data = await api("imagekit-analyze-video", {
+      provider_id: $("provider").value || null,
       url: parsed.url,
       platform: parsed.platform,
       mode,
