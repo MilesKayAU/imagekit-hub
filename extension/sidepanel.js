@@ -2739,8 +2739,6 @@ $("rv-send-ugc").addEventListener("click", () => {
 });
 
 $("rv-download-json").addEventListener("click", () => {
-
-$("rv-download-json").addEventListener("click", () => {
   if (!rvLastResult) return;
   const slug = (rvLastResult.__meta?.parsed?.videoId || "reference").replace(/[^a-z0-9]+/gi, "-").slice(0, 40);
   rvDownload(new Blob([JSON.stringify(rvLastResult, null, 2)], { type: "application/json" }), `${slug}-annotation.json`);
