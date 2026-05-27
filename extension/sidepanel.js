@@ -1806,7 +1806,10 @@ function renderVideoSlots() {
       dl.addEventListener("click", () => downloadVideoSlot(i));
       actions.appendChild(dl);
       const sv = document.createElement("button");
-      sv.type = "button"; sv.className = "secondary"; sv.textContent = slot.saved ? "Save again" : "Save to Library";
+      sv.type = "button";
+      sv.className = "secondary";
+      sv.disabled = !!slot.saving;
+      sv.textContent = slot.saving ? "Saving…" : (slot.saved ? "Saved ✓" : "Save to Library");
       sv.addEventListener("click", () => saveVideoSlot(i));
       actions.appendChild(sv);
     }
