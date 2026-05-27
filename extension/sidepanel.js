@@ -2478,7 +2478,7 @@ async function rvCallAnalyzer(parsed, directive, mode, audioCapable) {
   }
 }
 
-async function rvAnalyze(url, mode) {
+async function rvAnalyze(url, mode, depth) {
   const parsed = rvParseUrl(url);
   if (!parsed) throw new Error("That URL doesn't look valid.");
   rvStatus(`Fetching ${parsed.platform} metadata…`, "info");
@@ -2508,17 +2508,23 @@ async function rvAnalyze(url, mode) {
     "RETURN ONLY THE JSON OBJECT specified above. No prose. No code fences.",
   ].filter(Boolean).join("\n");
 
-  // Prefer the Gemini-backed analyzer for platforms it can ingest (YouTube /
-  // Shorts). On 404 / fallback / error we silently use the metadata rewriter.
+  // Gemini direct ingestion is opt-in via depth=watch and only works for
+  // YouTube / Shorts. On any failure or unsupported platform we fall back to
+  // the existing metadata-only text rewriter path and surface a yellow status.
   let result = null;
   let usedAnalyzer = false;
-  if (parsed.platform === "youtube" || parsed.platform === "shorts") {
+  let analyzerFellBack = false;
+  const wantWatch = depth === "watch" && (parsed.platform === "youtube" || parsed.platform === "shorts");
+  if (wantWatch) {
     rvStatus("Watching the reference with Gemini…", "info");
     result = await rvCallAnalyzer(parsed, directive, mode, audioCapable);
     if (result) usedAnalyzer = true;
+    else analyzerFellBack = true;
   }
   if (!result) {
-    rvStatus("Analyzing from metadata…", "info");
+    rvStatus(analyzerFellBack
+      ? "Gemini watcher unavailable — falling back to metadata analysis…"
+      : "Analyzing from metadata…", analyzerFellBack ? "warn" : "info");
     result = await rvCallRewriter(providerId, directive);
   }
 
@@ -2537,7 +2543,11 @@ async function rvAnalyze(url, mode) {
     if (total < 8 || total > 15) { result = rvClampTo15(result); trimmed = true; }
   }
 
-  result.__meta = { parsed, oembed: meta, mode, trimmed, source: usedAnalyzer ? "gemini-video" : "text-rewriter" };
+  result.__meta = {
+    parsed, oembed: meta, mode, trimmed,
+    source: usedAnalyzer ? "gemini-video" : "text-rewriter",
+    analyzerFellBack,
+  };
   return result;
 }
 
@@ -2674,22 +2684,23 @@ $("rv-analyze").addEventListener("click", async () => {
   const url = $("rv-url").value.trim();
   if (!url) { rvStatus("Paste a YouTube / TikTok / Shorts URL first.", "error"); return; }
   const mode = $("rv-mode").value;
+  const depth = ($("rv-depth") && $("rv-depth").value) || "metadata";
   const btn = $("rv-analyze");
   btn.disabled = true;
   try {
-    const result = await rvAnalyze(url, mode);
+    const result = await rvAnalyze(url, mode, depth);
     rvLastResult = result;
     const md = rvBuildMarkdown(result);
     $("rv-annotation").textContent = md;
-    $("rv-annotation-wrap").style.display = "block";
-    $("rv-annotation-wrap").open = true;
-    if (mode === "prompt_only") {
-      rvStatus(`Analysis ready (${rvSumDuration(result)}s). Slots untouched — review the annotation and copy prompts manually.`, "success");
+    rvRenderStoryboard(result);
+    const total = rvSumDuration(result);
+    const src = result.__meta?.source === "gemini-video" ? "watched with Gemini" : "metadata only";
+    if (result.__meta?.analyzerFellBack) {
+      rvStatus(`Gemini watcher unavailable — used metadata fallback (${total}s). Review the storyboard then push to a generation tab.`, "warn");
+    } else if (result.__meta?.trimmed) {
+      rvStatus(`Trimmed to ${total}s — review before pushing to a generation tab.`, "warn");
     } else {
-      rvApplyStoryboard(result);
-      const total = rvSumDuration(result);
-      if (result.__meta?.trimmed) rvStatus(`Trimmed to ${total}s — review before generating.`, "warn");
-      else rvStatus(`Storyboard applied (${total}s across 3 slots). Review and Generate.`, "success");
+      rvStatus(`Storyboard ready (${total}s, ${src}). Review and push to a generation tab when ready.`, "success");
     }
   } catch (e) {
     console.error("[reference video]", e);
@@ -2698,6 +2709,36 @@ $("rv-analyze").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+// --- Handoff buttons (analysis only, no generation) ---
+$("rv-send-video").addEventListener("click", () => {
+  if (!rvLastResult) { rvStatus("Run an analysis first.", "error"); return; }
+  rvApplyStoryboard(rvLastResult);
+  activateTab("video");
+  videoStatus(`Storyboard pushed from Video Marketing (${rvSumDuration(rvLastResult)}s). Review the 3 slots and click Generate when ready.`, "success");
+});
+
+$("rv-send-respin").addEventListener("click", () => {
+  if (!rvLastResult?.slot_prompts?.length) { rvStatus("Run an analysis first.", "error"); return; }
+  const first = rvLastResult.slot_prompts[0];
+  const txt = first?.image_prompt || first?.video_prompt || "";
+  if (!txt) { rvStatus("No image prompt to send.", "error"); return; }
+  const target = $("prompt");
+  if (target) target.value = txt;
+  activateTab("respin");
+});
+
+$("rv-send-ugc").addEventListener("click", () => {
+  if (!rvLastResult?.slot_prompts?.length) { rvStatus("Run an analysis first.", "error"); return; }
+  const lines = rvLastResult.slot_prompts.map((sp, i) =>
+    `Shot ${i + 1} (${sp.segment || `${sp.duration_s}s`}): ${sp.image_prompt || sp.video_prompt || ""}`
+  );
+  const target = $("ugc-master-prompt");
+  if (target) target.value = lines.join("\n\n");
+  activateTab("ugc");
+});
+
+$("rv-download-json").addEventListener("click", () => {
 
 $("rv-download-json").addEventListener("click", () => {
   if (!rvLastResult) return;
