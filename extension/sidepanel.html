@@ -258,6 +258,63 @@
       <div id="ugc-status" class="status hidden"></div>
     </section>
 
+    <section id="tab-marketing" class="tab-panel">
+      <div class="hint" style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;line-height:1.4;">
+        <strong>📺 Reference Video → Storyboard</strong><br/>
+        Paste a YouTube / TikTok / Shorts URL. AI condenses the structure into a brand-safe, 8–15s script with per-shot image &amp; video prompts. <em>Analysis only</em> — when you're happy, push the prompts to the Respin or Image → Video tab to generate.
+      </div>
+
+      <div class="block">
+        <label class="block-label">1. Reference video</label>
+        <div class="row">
+          <input id="rv-url" type="url" placeholder="https://youtube.com/watch?v=… or tiktok.com/@user/video/…" style="flex:1;" />
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <label style="flex:1;font-size:11px;">Analysis depth
+            <select id="rv-depth" style="width:100%;">
+              <option value="metadata">Metadata only — fast (title + uploader + AI inference)</option>
+              <option value="watch" selected>Watch the video — Gemini direct ingestion (YouTube / Shorts)</option>
+            </select>
+          </label>
+          <label style="flex:1;font-size:11px;">Style mode
+            <select id="rv-mode" style="width:100%;">
+              <option value="safe">Safe Original — structure only (recommended)</option>
+              <option value="closer">Closer Style Match — pacing + shot language</option>
+              <option value="prompt_only">Prompt Only — annotation, no slot prompts</option>
+            </select>
+          </label>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <button id="rv-analyze" class="primary" type="button" title="Inspired by structure and pacing only. Won't copy faces, logos, music, captions, or unique scenes.">Analyze &amp; build 8–15s storyboard</button>
+        </div>
+        <div id="rv-status" class="status hidden"></div>
+      </div>
+
+      <div id="rv-storyboard-wrap" class="block" style="display:none;">
+        <label class="block-label">2. Storyboard (review &amp; edit before handoff)</label>
+        <div id="rv-beats" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.5;margin-bottom:8px;"></div>
+        <div id="rv-slots"></div>
+        <details id="rv-annotation-wrap" style="margin-top:8px;">
+          <summary style="cursor:pointer;font-weight:600;font-size:12px;">Full annotation</summary>
+          <div class="row" style="margin:6px 0;">
+            <button id="rv-download-json" class="secondary" type="button">⬇ Download .json</button>
+            <button id="rv-download-md" class="secondary" type="button">⬇ Download .md</button>
+          </div>
+          <pre id="rv-annotation" style="background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:8px;max-height:280px;overflow:auto;font-size:11px;white-space:pre-wrap;"></pre>
+        </details>
+      </div>
+
+      <div id="rv-handoff-wrap" class="block" style="display:none;">
+        <label class="block-label">3. Push prompts to a generation tab</label>
+        <p class="muted" style="margin:0 0 8px;">Nothing is generated here. The buttons below copy prompts into the target tab so you can review and click Generate yourself.</p>
+        <div class="row">
+          <button id="rv-send-respin" class="secondary" type="button" title="Copy the first slot's image prompt into the Respin tab">↗ Send image prompt → Respin</button>
+          <button id="rv-send-ugc" class="secondary" type="button" title="Copy all 3 image prompts as a UGC master prompt">↗ Send image prompts → UGC</button>
+          <button id="rv-send-video" class="primary" type="button" title="Fill master + 3 video slot prompts in the Image → Video tab">↗ Send to Image → Video</button>
+        </div>
+      </div>
+    </section>
+
     <section id="tab-video" class="tab-panel">
       <div class="hint" style="background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;line-height:1.4;">
         <strong>BYOK:</strong> Image-to-video uses your key from ReadyCode → AI Providers.
